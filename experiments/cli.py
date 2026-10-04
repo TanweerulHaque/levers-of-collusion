@@ -471,6 +471,34 @@ def _build_runner_command(
     return command
 
 
+def _print_collusion_metrics(args: argparse.Namespace, repo_root: Path) -> None:
+    """Print EC, TC and CC for the trajectories this invocation just produced.
+
+    They need no judge: collusion is mutual ACCEPT, read from each run.json. A
+    failure here leaves the trajectories intact, so report it and keep going.
+    """
+    runs = [
+        str(Path(args.output_dir) / f"run_{_run_label(args, index)}_*" / "run.json")
+        for index in range(args.start_index, args.start_index + args.repeats)
+    ]
+    command = [
+        sys.executable,
+        "analysis/collusion_metrics.py",
+        "--runs",
+        *runs,
+        "--expected-trajectories",
+        str(args.repeats),
+    ]
+    completed = subprocess.run(command, cwd=repo_root, check=False)
+    if completed.returncode:
+        print(
+            f"collusion metrics exited {completed.returncode}; rerun "
+            "analysis/collusion_metrics.py on the run directories",
+            file=sys.stderr,
+            flush=True,
+        )
+
+
 def _run_judges(config: str, repo_root: Path) -> None:
     """Annotate the finished runs, which the judges locate from the same config.
 
@@ -517,6 +545,8 @@ def main() -> None:
         if not args.dry_run:
             subprocess.run(command, cwd=repo_root, check=True)
 
+    if not args.dry_run:
+        _print_collusion_metrics(args, repo_root)
     if args.judge and config and not args.dry_run:
         _run_judges(config, repo_root)
 

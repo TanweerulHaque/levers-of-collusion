@@ -1,23 +1,23 @@
 # This is a short test
 
 alice:                                    # --alice-* flags
-  model: openrouter/qwen/qwen3-32b
+  model: openrouter/stealth/space-bunny-alpha
   reasoning_effort: high
 
 bob:                                      # --bob-* flags
-  model: openrouter/qwen/qwen3-32b
+  model: openrouter/nvidia/nemotron-3-ultra-550b-a55b:free
   reasoning_effort: high
 
 run:                                      # flags of python -m experiments
-  task_sequence_record: [task/task_sequences_trial]
-  repeats: 1
-  max_rounds: 2
+  task_sequence_record: [task/task_sequences_trial_2_custom]
+  repeats: 2
+  max_rounds: 5
   output_dir: results
 
 judge:                                    # both analysis judges
   base_url: https://openrouter.ai/api/v1
-  model: qwen/qwen3.8-27b
+  model: qwen/qwen3.8-27b:free
   reasoning_effort: medium
   temperature: 1.0
-  workers: 8
+  workers: 1
   verdict_policy: raw-only
