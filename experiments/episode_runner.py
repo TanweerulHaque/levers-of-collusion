@@ -61,7 +61,7 @@ from experiments.protocol import (
     TASK_ATTEMPTS,
     VERDICT_ATTEMPTS,
 )
-from experiments.protocol.rewards import episode_rewards
+from experiments.protocol.rewards import episode_rewards, format_reward
 from experiments.protocol.state import (
     AGENT_IDS,
     agent_state,
@@ -949,7 +949,7 @@ def _process_episode_outcomes(
     log_progress(
         "  Episode done: "
         + " ".join(
-            f"{agent_id}(+{outcomes.agents[agent_id].reward} "
+            f"{agent_id}({format_reward(outcomes.agents[agent_id].reward)} "
             f"{outcomes.agents[agent_id].verdict}"
             f"/{'right' if outcomes.agents[agent_id].verdict_correct else 'wrong'})"
             for agent_id in AGENT_IDS

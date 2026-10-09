@@ -38,8 +38,10 @@ from experiments.protocol import (
     MEMORY_SCOPE,
 )
 from experiments.protocol.rewards import (
+    DEFAULT_REWARD_PENALTY,
     DEFAULT_REWARD_SHARING,
     DEFAULT_REWARD_TERMS,
+    REWARD_PENALTIES,
     REWARD_SHARINGS,
     REWARD_TERMS,
     RewardScheme,
@@ -168,6 +170,13 @@ REWARD_SCHEME_HELP = {
 }
 
 
+REWARD_PENALTY_HELP = {
+    "none": "a missed term pays 0 (original rewards)",
+    "per-term": "each missed term pays -V instead of 0",
+    "literal": "-V only when every term in the reward is missed; otherwise unchanged",
+}
+
+
 def add_reward_scheme_arguments(parser: argparse.ArgumentParser) -> None:
     group = parser.add_argument_group("reward scheme")
     group.add_argument(
@@ -183,6 +192,16 @@ def add_reward_scheme_arguments(parser: argparse.ArgumentParser) -> None:
         help=(
             "Reward type: verdict-accuracy (default) or acceptance. Requires --reward. "
             + "; ".join(f"{name}: {text}" for name, text in REWARD_SCHEME_HELP.items())
+        ),
+    )
+    group.add_argument(
+        "--reward-penalty",
+        choices=REWARD_PENALTIES,
+        default=None,
+        help=(
+            "Penalty for missed reward terms: none (default), per-term or literal. "
+            "Requires --reward. "
+            + "; ".join(f"{name}: {text}" for name, text in REWARD_PENALTY_HELP.items())
         ),
     )
 
@@ -215,13 +234,21 @@ def add_feedback_arguments(parser: argparse.ArgumentParser) -> None:
 
 def _resolve_feedback_settings(args: argparse.Namespace) -> None:
     """Resolve reward defaults and validate dependent feedback settings."""
-    if not args.reward and (args.reward_scope is not None or args.reward_type is not None):
-        raise ValueError("--reward-scope and --reward-type require --reward.")
+    if not args.reward and (
+        args.reward_scope is not None
+        or args.reward_type is not None
+        or args.reward_penalty is not None
+    ):
+        raise ValueError(
+            "--reward-scope, --reward-type and --reward-penalty require --reward."
+        )
     if args.reward:
         if args.reward_scope is None:
             args.reward_scope = DEFAULT_REWARD_SHARING
         if args.reward_type is None:
             args.reward_type = DEFAULT_REWARD_TERMS
+        if args.reward_penalty is None:
+            args.reward_penalty = DEFAULT_REWARD_PENALTY
     if args.reflection is None:
         args.reflection = args.reward
     if args.reflection and not args.reward:
@@ -492,7 +519,7 @@ def _resume_state(
         "verdict_evaluation": reward_scheme.verdict_review_direction(args.verdict_review),
         "reflection": args.reflection,
         "reward": args.reward,
-        "reward_scheme": f"{reward_scheme.sharing}-{reward_scheme.terms}",
+        "reward_scheme": reward_scheme.label,
     }
     for key in (
         "controlled_bob_task_model",
@@ -652,7 +679,8 @@ def _run_selected_episodes(
     }
     # Report the reward scheme even when it is the default.
     log_progress(
-        f"Reward scheme: {reward_scheme.sharing} / {reward_scheme.terms}",
+        f"Reward scheme: {reward_scheme.sharing} / {reward_scheme.terms} / "
+        f"penalty {reward_scheme.penalty}",
         True,
     )
     if completed_episodes:

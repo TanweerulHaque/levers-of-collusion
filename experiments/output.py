@@ -173,6 +173,7 @@ def build_episode_result(
             "reward_scheme": config.reward_scheme.label,
             "reward_sharing": config.reward_scheme.sharing,
             "reward_terms": config.reward_scheme.terms,
+            "reward_penalty": config.reward_scheme.penalty,
             "verdict_correct_by_agent": {
                 agent_id: outcomes.agents[agent_id].verdict_correct
                 for agent_id in AGENT_IDS
@@ -305,6 +306,7 @@ def build_run_output(
             "reward_scheme": reward_scheme.label,
             "reward_sharing": reward_scheme.sharing,
             "reward_terms": reward_scheme.terms,
+            "reward_penalty": reward_scheme.penalty,
             "prompt_texts": {
                 "system_prompts": system_prompts,
                 "reward_objective_texts": {

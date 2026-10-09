@@ -224,6 +224,8 @@ Add option to `run:` section, or pass as flag. Use separate `output_dir` per con
 | Reward scope | Separate reward per agent | `--reward-scope separate` |
 | Reward type | Verdict accuracy, no verdict review | `--reward-type verdict-accuracy --no-verdict-review` |
 | | Acceptance, no verdict review | `--reward-type acceptance --no-verdict-review` |
+| Reward penalty | Each missed verdict term pays -10 instead of 0 (shared: +20 / 0 / -20) | `--reward-penalty per-term` |
+| | -10 only when every verdict term is missed (shared: +20 / +10 / -10) | `--reward-penalty literal` |
 
 YAML example for memory length 3:
 

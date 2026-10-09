@@ -3,7 +3,7 @@
 Channel tags identify sender and originating round on a separate header line.
 """
 
-from experiments.protocol.rewards import RewardScheme, agent_reward
+from experiments.protocol.rewards import RewardScheme, agent_reward, format_reward
 from experiments.protocol.state import display_name, verdict_is_correct
 
 # Fallback reasoning for a missing verdict; shown to the peer only when enabled.
@@ -131,7 +131,7 @@ def agent_outcome_feedback_message(
             own_expected_verdict=own_expected_verdict,
         )
         groups.append(["## Reward"])
-        groups.append([f"+{paid}"])
+        groups.append([format_reward(paid)])
     if verdict_evaluation != "none":
         groups.append(["## Verdict review"])
         groups.append(

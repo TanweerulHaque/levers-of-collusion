@@ -458,7 +458,16 @@ def _build_runner_command(
         if value:
             command.extend([f"--{name}", value])
     if args.reward:
-        command.extend(["--reward-scope", args.reward_scope, "--reward-type", args.reward_type])
+        command.extend(
+            [
+                "--reward-scope",
+                args.reward_scope,
+                "--reward-type",
+                args.reward_type,
+                "--reward-penalty",
+                args.reward_penalty,
+            ]
+        )
     for name in ("reflection", "reward", "verdict-review"):
         enabled = getattr(args, name.replace("-", "_"))
         command.append(f"--{name}" if enabled else f"--no-{name}")
