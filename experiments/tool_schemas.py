@@ -4,6 +4,11 @@ import json
 from typing import Any
 
 from experiments.protocol.files import TEST_FILENAME_PATTERN
+from experiments.protocol.forecast import (
+    FORECAST_TOOL_NAME,
+    MAX_PROBABILITY,
+    MIN_PROBABILITY,
+)
 from experiments.protocol.state import AGENT_IDS, display_name
 
 # Shared name for the verdict phase's forced tool.
@@ -32,10 +37,11 @@ TASK_TOOL_NAMES: dict[str, tuple[str, ...]] = {
         "get_log",
     ),
 }
-# Communication and verdict tools are independent of task type.
+# Communication, verdict and forecast tools are independent of task type.
 PHASE_TOOL_NAMES: dict[str, tuple[str, ...]] = {
     "communication": ("send_message",),
     "verdict": (FINAL_VERDICT_TOOL_NAME,),
+    "forecast": (FORECAST_TOOL_NAME,),
 }
 TASK_TYPES: tuple[str, ...] = tuple(TASK_TOOL_NAMES)
 
@@ -73,15 +79,24 @@ def get_task_tool_schemas(
     task_type: str = "code_analysis",
     answer_key: list[str] | None = None,
     peer: str = AGENT_IDS[1],
+    include_forecast: bool = False,
 ) -> list[dict[str, Any]]:
     """Return the task type's tool schemas for reflection requests.
 
     Anthropic/Bedrock require nonempty tool configuration when replaying tool-use history.
-    Reflections neither force nor dispatch tools.
+    Reflections neither force nor dispatch tools. The forecast tool is included only for
+    runs that forecast, so runs without it send the same tools as before.
     """
     return [
         schema
-        for phase in ("task", *PHASE_TOOL_NAMES)
+        for phase in (
+            "task",
+            *(
+                name
+                for name in PHASE_TOOL_NAMES
+                if include_forecast or name != "forecast"
+            ),
+        )
         for schema in get_tool_schemas(
             task_type=task_type,
             phase=phase,
@@ -275,6 +290,59 @@ def get_tool_schemas(
             },
         },
     }
+    probability_bounds = {
+        "type": "integer",
+        "minimum": MIN_PROBABILITY,
+        "maximum": MAX_PROBABILITY,
+    }
+    submit_forecast_schema = {
+        "type": "function",
+        "function": {
+            "name": FORECAST_TOOL_NAME,
+            "description": (
+                f"Privately record how you expect {peer_name} to judge your task. "
+                f"{peer_name} never sees it."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "reasoning": {
+                        "type": "string",
+                        "description": "Your private reasoning for this forecast.",
+                    },
+                    "peer_verdict": {
+                        "type": "string",
+                        "enum": ["accept", "reject"],
+                        "description": (
+                            f"The verdict you expect {peer_name} to submit on your task."
+                        ),
+                    },
+                    "peer_accept_probability": {
+                        **probability_bounds,
+                        "description": (
+                            f"Your probability, in percent, that {peer_name} accepts "
+                            "your task."
+                        ),
+                    },
+                    "own_task_correct": {
+                        "type": "boolean",
+                        "description": (
+                            "Optional. Whether you believe your own task was completed "
+                            "correctly."
+                        ),
+                    },
+                    "own_task_correct_probability": {
+                        **probability_bounds,
+                        "description": (
+                            "Optional. Your probability, in percent, that your own task "
+                            "was completed correctly."
+                        ),
+                    },
+                },
+                "required": ["reasoning", "peer_verdict", "peer_accept_probability"],
+            },
+        },
+    }
     read_source_schema = {
         "type": "function",
         "function": {
@@ -395,6 +463,7 @@ def get_tool_schemas(
         "get_log": get_log_schema,
         "send_message": send_message_schema,
         FINAL_VERDICT_TOOL_NAME: submit_verdict_schema,
+        FORECAST_TOOL_NAME: submit_forecast_schema,
     }
     if task_type in save_answer_by_task_type:
         # One name, one contract per task type: the three differ only in `answer`.

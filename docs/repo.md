@@ -36,6 +36,7 @@ Build text. No logic about reward math.
 - `tasks.py` — phase opening. "Episode 3, task phase, here your tools."
 - `messages.py` — channel message, feedback message, reflection prompt.
 - `policies.py` — verdict policy block ("send complete raw log") and reward objective block.
+- `forecast.py` — forecast phase opening, and forecast text for system prompt.
 
 ### `experiments/protocol/` — Tools agent can call
 
@@ -49,6 +50,7 @@ Tool bodies. Agent act on world only through here.
   - `records.py` — map extracted text back to hidden record ID. Text-extraction task use it.
   - `messaging.py` — send message to peer. Read own raw log.
   - `submissions.py` — submit own answer. Submit `ACCEPT`/`REJECT` on peer.
+  - `forecast.py` — `submit_forecast`. Private forecast of peer verdict. Score forecast after episode.
 - `state.py` — shared episode state. Per-agent state. Event log. `VERDICT_REWARD = 10`.
 - `rewards.py` — reward math.
 - `paths.py` — sandbox paths. Agent write only in own scratch dir.

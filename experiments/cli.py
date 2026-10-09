@@ -15,9 +15,15 @@ from dotenv import load_dotenv
 from experiments.protocol import DEFAULT_MAX_ROUNDS
 from experiments.protocol.state import AGENT_IDS
 from experiments.protocol.rewards import reward_scheme_from_args
-from experiments.config import apply_config, config_defaults, model_slug
+from experiments.config import (
+    active_forecast_position,
+    apply_config,
+    config_defaults,
+    results_dir_name,
+)
 from experiments.runner import (
     MAX_ROUNDS_HELP,
+    add_forecast_arguments,
     add_memory_arguments,
     add_model_arguments,
     add_reward_scheme_arguments,
@@ -310,6 +316,8 @@ def _build_parser() -> argparse.ArgumentParser:
 
     add_feedback_arguments(parser)
 
+    add_forecast_arguments(parser)
+
     add_memory_arguments(parser, default_scope="full-history")
     add_reward_scheme_arguments(parser)
 
@@ -471,6 +479,8 @@ def _build_runner_command(
     for name in ("reflection", "reward", "verdict-review"):
         enabled = getattr(args, name.replace("-", "_"))
         command.append(f"--{name}" if enabled else f"--no-{name}")
+    if args.forecast:
+        command.extend(["--forecast", "--forecast-position", args.forecast_position])
     outcome_flags = (
         ("--quiet", args.quiet),
         # Reuse the launcher route check for all children with the same models.
@@ -537,11 +547,20 @@ def main() -> None:
     if config:
         apply_config(parser, config_defaults(Path(config), RUN_SECTIONS))
     args = parser.parse_args()
-    # Group every trajectory of one model pair under a directory naming that pair.
-    args.output_dir = str(Path(args.output_dir) / model_slug(args.alice_model, args.bob_model))
     # Dry runs must not make route-check requests.
     args.no_preflight = args.no_preflight or args.dry_run
     _validate_args(args)
+    # Group every trajectory of one model pair under a directory naming that pair, and
+    # the forecast position when forecasting. Judges and metrics resolve the same name.
+    args.output_dir = str(
+        Path(args.output_dir)
+        / results_dir_name(
+            args.alice_model,
+            args.bob_model,
+            args.forecast,
+            active_forecast_position(args.forecast, args.forecast_position),
+        )
+    )
     records = _load_run_records(args, repo_root)
 
     for run_index in range(args.start_index, args.start_index + args.repeats):

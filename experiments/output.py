@@ -6,6 +6,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
+from experiments.config import active_forecast_position
 from experiments.llm import get_endpoint_metadata, get_litellm_version
 from experiments.memory.messages import snapshot_visible_messages
 from experiments.models import (
@@ -116,6 +117,8 @@ def _build_agent_result(
         "outcome_feedback": outcome.feedback,
         "reflection": outcome.reflection,
         "reflection_prompt": outcome.reflection_prompt,
+        # The private forecast, scored against the episode's outcome; None when off.
+        "forecast": deepcopy(outcome.forecast),
         "own_task_prompt": agent.own_task_prompt,
         "judging_prompt": agent.judging_prompt,
         "verdict_prompt": agent.verdict_prompt,
@@ -168,6 +171,7 @@ def build_episode_result(
             "verdict_review": config.verdict_review,
             "verdict_evaluation": config.verdict_evaluation,
             "reflection": config.reflection,
+            "forecast_position": config.forecast_position,
             "reward_by_agent": outcomes.rewards,
             # Include the reward scheme so episode rows can be interpreted independently.
             "reward_scheme": config.reward_scheme.label,
@@ -210,6 +214,9 @@ def build_run_output(
 ) -> dict[str, Any]:
     """Build the complete serializable state of a run."""
     reward_scheme = reward_scheme_from_args(args)
+    forecast_position = active_forecast_position(
+        getattr(args, "forecast", False), getattr(args, "forecast_position", None)
+    )
     system_prompts = {
         agent_id: initial_agent_messages(
             agent_id=agent_id,
@@ -219,6 +226,11 @@ def build_run_output(
             reward_objective=args.reward
             and not (agent_id == "bob" and args.bob_model == "controlled"),
             reward_scheme=reward_scheme,
+            # A replayed Bob records no forecast, so its prompt never mentions one.
+            forecast_position=(
+                "" if agent_id == "bob" and args.bob_model == "controlled"
+                else forecast_position
+            ),
         )[0]["content"]
         for agent_id in AGENT_IDS
     }
@@ -298,6 +310,8 @@ def build_run_output(
             "run_label": args.run_label,
             "episode_count": len(results),
             "reflection": args.reflection,
+            "forecast": bool(forecast_position),
+            "forecast_position": forecast_position,
             "reward": args.reward,
             "verdict_review": args.verdict_review,
             "verdict_evaluation": reward_scheme.verdict_review_direction(args.verdict_review),

@@ -12,8 +12,9 @@ AGENT_IDS = ("alice", "bob")
 # Use display names in prose and agent IDs in tags and routing.
 AGENT_DISPLAY_NAMES = {agent_id: agent_id.capitalize() for agent_id in AGENT_IDS}
 
-# Shared phase barriers; agents alternate only within communication.
-PHASES = ("task", "communication", "verdict")
+# Shared phase barriers; agents alternate only within communication. The forecast
+# phase runs only when a forecast position is set, and then at that position.
+PHASES = ("task", "communication", "verdict", "forecast")
 
 # Peer verdicts use accept/reject, distinct from task evaluation pass/fail.
 VALID_VERDICTS = {"accept", "reject"}
@@ -81,6 +82,8 @@ def _agent_slot() -> dict[str, Any]:
         "private_raw_log_retrieved": False,
         # this agent's verdict on its peer's task
         "verdict_submission": None,
+        # this agent's private forecast of its peer's verdict on this agent's task
+        "forecast_submission": None,
         # Unread messages, each carrying its originating communication round.
         "inbox": [],
         "delivered": False,
@@ -91,10 +94,15 @@ def create_channel_state(
     episode_id: str,
     throttled: bool = True,
     char_limit: int = 200,
+    forecast_position: str = "",
 ) -> dict[str, Any]:
-    """Create shared episode state with an episode-wide communication constraint."""
+    """Create shared episode state with an episode-wide communication constraint.
+
+    ``forecast_position`` names where the private forecast phase runs; empty means none.
+    """
     return {
         "episode_id": episode_id,
+        "forecast_position": forecast_position,
         # Internal rounds are 0-based; displayed rounds are 1-based.
         "round": 0,
         "phase": PHASES[0],

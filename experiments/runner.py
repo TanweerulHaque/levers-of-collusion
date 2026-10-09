@@ -12,6 +12,7 @@ from typing import Any
 
 from dotenv import load_dotenv
 
+from experiments.config import active_forecast_position
 from experiments.controlled import MESSAGE_POLICIES, cached_model_settings
 from experiments.episode_runner import log_progress, run_one_episode
 from experiments.episode_schedules import (
@@ -34,7 +35,9 @@ from experiments.models import (
 from experiments.output import build_run_output, write_run_output
 from experiments.prompts.system import initial_agent_messages
 from experiments.protocol import (
+    DEFAULT_FORECAST_POSITION,
     DEFAULT_MAX_ROUNDS,
+    FORECAST_POSITIONS,
     MEMORY_SCOPE,
 )
 from experiments.protocol.rewards import (
@@ -255,6 +258,37 @@ def _resolve_feedback_settings(args: argparse.Namespace) -> None:
         raise ValueError("--reflection requires --reward.")
 
 
+def add_forecast_arguments(parser: argparse.ArgumentParser) -> None:
+    group = parser.add_argument_group("private peer forecast")
+    group.add_argument(
+        "--forecast", action=argparse.BooleanOptionalAction, default=False,
+        help=(
+            "Add a forecast phase in which each agent privately forecasts its peer's "
+            "verdict on its task (default: disabled). The forecast stays in the agent's "
+            "own memory like the rest of the episode and is never shown to the peer."
+        ),
+    )
+    group.add_argument(
+        "--forecast-position",
+        choices=FORECAST_POSITIONS,
+        default=None,
+        help=(
+            "Where the forecast phase runs. before-communication: after the peer's task "
+            "brief, before any message. before-verdict: after communication, before "
+            "either verdict. after-verdict: after both verdicts, before the outcome. "
+            f"Requires --forecast. Default {DEFAULT_FORECAST_POSITION}."
+        ),
+    )
+
+
+def _resolve_forecast_settings(args: argparse.Namespace) -> None:
+    """Default the forecast position, and reject a position without a forecast."""
+    if args.forecast_position is not None and not args.forecast:
+        raise ValueError("--forecast-position requires --forecast.")
+    if args.forecast and args.forecast_position is None:
+        args.forecast_position = DEFAULT_FORECAST_POSITION
+
+
 def build_run_parser() -> argparse.ArgumentParser:
     """Create the internal single-run parser."""
     parser = argparse.ArgumentParser(
@@ -300,6 +334,8 @@ def build_run_parser() -> argparse.ArgumentParser:
     add_memory_arguments(parser, default_scope="full-history")
 
     add_feedback_arguments(parser)
+
+    add_forecast_arguments(parser)
 
     add_reward_scheme_arguments(parser)
 
@@ -388,6 +424,7 @@ def validate_run_args(args: argparse.Namespace) -> None:
                 f"{_agent_flag(agent_id, 'max-output-tokens')} must be at least 1."
             )
     _resolve_feedback_settings(args)
+    _resolve_forecast_settings(args)
     # Validate manually constructed options as well as parser-generated values.
     reward_scheme_from_args(args)
     controlled = getattr(args, "bob_model", "") == "controlled"
@@ -518,6 +555,7 @@ def _resume_state(
         "char_limit": args.char_limit,
         "verdict_evaluation": reward_scheme.verdict_review_direction(args.verdict_review),
         "reflection": args.reflection,
+        "forecast_position": active_forecast_position(args.forecast, args.forecast_position),
         "reward": args.reward,
         "reward_scheme": reward_scheme.label,
     }
@@ -607,6 +645,7 @@ def _run_selected_episodes(
         args.bob_max_output_tokens = recorded["max_output_tokens"]
     # Resolve one reward scheme for both scoring and prompt construction.
     reward_scheme = reward_scheme_from_args(args)
+    forecast_position = active_forecast_position(args.forecast, args.forecast_position)
     # Build one system prompt per agent; enable the reward objective with reward feedback.
     base_agent_messages = {
         agent_id: initial_agent_messages(
@@ -617,6 +656,11 @@ def _run_selected_episodes(
             reward_objective=args.reward
             and not (agent_id == "bob" and args.bob_model == "controlled"),
             reward_scheme=reward_scheme,
+            # A replayed Bob records no forecast, so its prompt never mentions one.
+            forecast_position=(
+                "" if agent_id == "bob" and args.bob_model == "controlled"
+                else forecast_position
+            ),
         )
         for agent_id in AGENT_IDS
     }
@@ -683,6 +727,8 @@ def _run_selected_episodes(
         f"penalty {reward_scheme.penalty}",
         True,
     )
+    if forecast_position:
+        log_progress(f"Private peer forecast: {forecast_position}", True)
     if completed_episodes:
         log_progress(
             f"Resuming after {completed_episodes}/{len(selected.pairs)} episodes "
@@ -719,6 +765,7 @@ def _run_selected_episodes(
                 reflection=args.reflection,
                 reward=args.reward,
                 verdict_review=args.verdict_review,
+                forecast_position=forecast_position,
                 reward_scheme=reward_scheme,
                 controlled_bob_verdict=args.controlled_bob_verdict
                 if args.bob_model == "controlled"

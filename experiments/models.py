@@ -36,6 +36,8 @@ class EpisodeRunConfig:
     reflection: bool = True
     reward: bool = True
     verdict_review: bool = True
+    # Where the private peer forecast phase runs; empty means no forecast phase.
+    forecast_position: str = ""
     # Reward terms and sharing mode applied throughout the run.
     reward_scheme: RewardScheme = RewardScheme()
     controlled_bob_verdict: str = ""
@@ -110,6 +112,8 @@ class AgentOutcome:
     feedback: str | None = None
     reflection: str | None = None
     reflection_prompt: str | None = None
+    # The agent's private forecast scored against what happened; None without a forecast.
+    forecast: dict[str, Any] | None = None
 
 
 @dataclass

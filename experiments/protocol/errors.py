@@ -28,6 +28,8 @@ ERROR_KINDS: tuple[str, ...] = (
     # the two channel tools
     "MessageError",  # send_message
     "VerdictError",  # submit_verdict
+    # the private forecast tool
+    "ForecastError",  # submit_forecast
 )
 
 

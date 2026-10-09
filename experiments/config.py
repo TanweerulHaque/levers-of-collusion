@@ -11,6 +11,8 @@ from typing import Any
 
 import yaml
 
+from experiments.protocol import DEFAULT_FORECAST_POSITION
+
 SECTIONS = ("alice", "bob", "run", "judge")
 
 
@@ -42,3 +44,36 @@ def model_slug(alice_model: str, bob_model: str) -> str:
         for model in (alice_model, bob_model)
     )
     return alice if alice == bob else f"{alice}__{bob}"
+
+
+def active_forecast_position(forecast: object, position: object = None) -> str:
+    """The forecast position a run uses, or "" when private forecasting is off."""
+    if not forecast:
+        return ""
+    return str(position or DEFAULT_FORECAST_POSITION)
+
+
+def results_dir_name(
+    alice_model: str,
+    bob_model: str,
+    forecast: object = False,
+    forecast_position: object = None,
+) -> str:
+    """Name the results folder holding one condition's runs.
+
+    A forecast run adds ``_forecast-<position>`` to the pair slug, so it never shares a
+    folder with the plain pair. Only this folder is renamed; run folders keep their names.
+    """
+    slug = model_slug(alice_model, bob_model)
+    position = active_forecast_position(forecast, forecast_position)
+    return f"{slug}_forecast-{position}" if position else slug
+
+
+def results_dir_name_from_defaults(defaults: dict[str, Any]) -> str:
+    """``results_dir_name`` for the flattened settings ``config_defaults`` returns."""
+    return results_dir_name(
+        defaults.get("alice_model", ""),
+        defaults.get("bob_model", ""),
+        defaults.get("forecast", False),
+        defaults.get("forecast_position"),
+    )

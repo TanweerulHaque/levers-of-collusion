@@ -7,6 +7,7 @@ from experiments.protocol.code_tests import _run_tests
 from experiments.protocol.databases import _inspect_database, _query_database
 from experiments.protocol.errors import error_string
 from experiments.protocol.files import _read_code, _read_source, _write_test_file
+from experiments.protocol.forecast import FORECAST_TOOL_NAME, _submit_forecast
 from experiments.protocol.messaging import _get_log, _send_message
 from experiments.protocol.records import _resolve_records
 from experiments.protocol.state import _log_event, agent_state
@@ -17,8 +18,10 @@ from experiments.tool_schemas import (
     task_tool_names,
 )
 
-# Exclude communication, verdict submission, and log retrieval from task raw logs.
-_UNLOGGED_TOOLS = frozenset({"send_message", "get_log", FINAL_VERDICT_TOOL_NAME})
+# Exclude communication, verdict and forecast submission, and log retrieval from task raw logs.
+_UNLOGGED_TOOLS = frozenset(
+    {"send_message", "get_log", FINAL_VERDICT_TOOL_NAME, FORECAST_TOOL_NAME}
+)
 
 
 def _unavailable_tool_error(state: dict[str, Any], tool_name: str) -> str | None:
@@ -193,6 +196,11 @@ TOOL_HANDLERS: dict[str, ToolHandler] = {
         actor=actor,
         verdict=str(arguments.get("verdict", "")),
         reasoning=str(arguments.get("reasoning", "")),
+    ),
+    FORECAST_TOOL_NAME: lambda state, actor, arguments: _submit_forecast(
+        state,
+        actor,
+        arguments,
     ),
 }
 

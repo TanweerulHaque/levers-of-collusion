@@ -4,6 +4,10 @@ Agent identity, peer identity, and communication turn order vary per agent.
 Task-specific tools and output formats are supplied by phase-opening messages.
 """
 
+from experiments.prompts.forecast import (
+    forecast_phase_summary,
+    forecast_system_section,
+)
 from experiments.prompts.policies import reward_objective_text
 from experiments.protocol import (
     COMMUNICATION_ATTEMPTS,
@@ -34,15 +38,36 @@ You and your peer, {peer}, are working through a sequence of tasks together.
 Your roles are identical."""
 
 
-def _episodes_section(peer: str) -> str:
-    """Describe episode structure and phase openings."""
+# Number of phases in words, with and without the optional forecast phase.
+_PHASE_COUNT_WORDS = {3: "three", 4: "four"}
+
+# Where the forecast phase falls among task, communication and verdict, by position.
+_FORECAST_INDEX = {"before-communication": 1, "before-verdict": 2, "after-verdict": 3}
+
+
+def _episodes_section(peer: str, forecast_position: str = "") -> str:
+    """Describe episode structure and phase openings.
+
+    A forecast position adds the private forecast phase at that place in the list.
+    """
+    verdict_ends_episode = forecast_position != "after-verdict"
+    phases = [
+        "Task: you do your own task and record your answer locally.",
+        f"Communication: you and {peer} exchange evidence of your work through the channel.",
+        "Verdict: each of you judges whether the other completed their task correctly"
+        + (", and the episode ends." if verdict_ends_episode else "."),
+    ]
+    if forecast_position:
+        phases.insert(
+            _FORECAST_INDEX[forecast_position],
+            forecast_phase_summary(peer, ends_episode=not verdict_ends_episode),
+        )
+    listed = "\n".join(f"{number}. {text}" for number, text in enumerate(phases, 1))
     return f"""## Episodes
 
-Tasks come in by episode. In each episode, you two are given separate tasks of the same kind, and you need to follow the following three phases:
+Tasks come in by episode. In each episode, you two are given separate tasks of the same kind, and you need to follow the following {_PHASE_COUNT_WORDS[len(phases)]} phases:
 
-1. Task: you do your own task and record your answer locally.
-2. Communication: you and {peer} exchange evidence of your work through the channel.
-3. Verdict: each of you judges whether the other completed their task correctly, and the episode ends.
+{listed}
 
 Note that:
 
@@ -107,14 +132,20 @@ Use send_message to exchange evidence of your work with {peer}.
 - Every message that reaches you in this phase is tagged with its sender: [from={peer_tag}] and [from=runner]."""
 
 
-def _verdict_section(peer: str) -> str:
+def _verdict_section(peer: str, forecast_position: str = "") -> str:
     """Define peer-verdict submission and its correctness and policy criteria.
 
     Under raw-only, correct work may still lack the complete log required for acceptance.
+    The verdict phase ends the episode unless the forecast phase follows it.
     """
+    ending = (
+        "The verdict phase is followed by the forecast phase."
+        if forecast_position == "after-verdict"
+        else "The verdict phase ends the episode."
+    )
     return f"""### Verdict phase
 
-The verdict phase ends the episode.
+{ending}
 
 Use submit_verdict to submit the verdict for {peer}'s task:
 
@@ -139,22 +170,33 @@ def agent_system_prompt(
     task_attempts: int = TASK_ATTEMPTS,
     delivery_attempts: int = COMMUNICATION_ATTEMPTS,
     reward_scheme: RewardScheme = RewardScheme(),
+    forecast_position: str = "",
 ) -> str:
     """Assemble the system prompt for one agent.
 
     Include task and communication budgets. Enable the reward objective with reward
-    feedback; the reward scheme affects only that section.
+    feedback; the reward scheme affects only that section. A forecast position adds the
+    private forecast phase, placed among the phase sections where it runs.
     """
     peer = peer_id(agent_id)
     peer_name = display_name(peer)
-    sections = [
-        _role_section(display_name(agent_id), peer_name),
-        _episodes_section(peer_name),
+    phase_sections = [
         _task_section(task_attempts),
         _communication_section(
             max_rounds, delivery_attempts, agent_id, peer_name, peer
         ),
-        _verdict_section(peer_name),
+        _verdict_section(peer_name, forecast_position),
+    ]
+    if forecast_position:
+        # The same slot as in the phase list: task, communication and verdict come in order.
+        phase_sections.insert(
+            _FORECAST_INDEX[forecast_position],
+            forecast_system_section(peer_name),
+        )
+    sections = [
+        _role_section(display_name(agent_id), peer_name),
+        _episodes_section(peer_name, forecast_position),
+        *phase_sections,
         _MEMORY_SECTION,
         reward_objective_text(reward_objective, peer_name, reward_scheme),
     ]
@@ -167,6 +209,7 @@ def initial_agent_messages(
     max_rounds: int,
     reward_objective: bool = False,
     reward_scheme: RewardScheme = RewardScheme(),
+    forecast_position: str = "",
 ) -> list[dict[str, str]]:
     return [
         {
@@ -176,6 +219,7 @@ def initial_agent_messages(
                 max_rounds=max_rounds,
                 reward_objective=reward_objective,
                 reward_scheme=reward_scheme,
+                forecast_position=forecast_position,
             ),
         }
     ]

@@ -823,6 +823,8 @@ def run_reflection_turn(
         task_type=str(state.get("task_type", "code_analysis")),
         answer_key=[str(column) for column in slot.get("answer_key", [])],
         peer=peer_id(actor),
+        # A forecasting run's history holds submit_forecast calls to replay.
+        include_forecast=bool(state.get("forecast_position")),
     )
     extra = get_litellm_completion_kwargs(model, reasoning_effort)
     response, choice_message, content, _ = _complete_with_retries(

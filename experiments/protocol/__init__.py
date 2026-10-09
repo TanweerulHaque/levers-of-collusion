@@ -12,3 +12,10 @@ COMMUNICATION_ATTEMPTS = 3
 
 # Per-agent retries for malformed verdict submissions.
 VERDICT_ATTEMPTS = 3
+
+# Where the private peer forecast sits in an episode, relative to the other phases.
+FORECAST_POSITIONS = ("before-communication", "before-verdict", "after-verdict")
+DEFAULT_FORECAST_POSITION = "before-verdict"
+
+# Per-agent retries for malformed forecast submissions.
+FORECAST_ATTEMPTS = 3

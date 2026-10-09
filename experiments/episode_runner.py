@@ -46,6 +46,7 @@ from experiments.prompts.messages import (
     incoming_channel_message,
     peer_delivery_failure_notice,
 )
+from experiments.prompts.forecast import forecast_phase_message
 from experiments.prompts.system import initial_agent_messages
 from experiments.prompts.tasks import (
     own_code_task_message,
@@ -58,9 +59,11 @@ from experiments.prompts.tasks import (
 )
 from experiments.protocol import (
     COMMUNICATION_ATTEMPTS,
+    FORECAST_ATTEMPTS,
     TASK_ATTEMPTS,
     VERDICT_ATTEMPTS,
 )
+from experiments.protocol.forecast import FORECAST_TOOL_NAME, score_forecast
 from experiments.protocol.rewards import episode_rewards, format_reward
 from experiments.protocol.state import (
     AGENT_IDS,
@@ -90,6 +93,7 @@ _PHASE_BUDGETS = {
     "task": TASK_ATTEMPTS,
     "communication": COMMUNICATION_ATTEMPTS,
     "verdict": VERDICT_ATTEMPTS,
+    "forecast": FORECAST_ATTEMPTS,
 }
 
 
@@ -134,6 +138,12 @@ def _phase_completed(turn_result: dict[str, Any], phase: str) -> bool:
             # Use the schema name to recognize a successful verdict submission.
             if (
                 call["tool_name"] == FINAL_VERDICT_TOOL_NAME
+                and result.get("recorded") is True
+            ):
+                return True
+        elif phase == "forecast":
+            if (
+                call["tool_name"] == FORECAST_TOOL_NAME
                 and result.get("recorded") is True
             ):
                 return True
@@ -482,6 +492,7 @@ def _prepare_pair(
         episode_id=f"{first['task_id']}+{second['task_id']}",
         throttled=config.throttled,
         char_limit=config.char_limit,
+        forecast_position=config.forecast_position,
     )
     state.update(
         {
@@ -648,6 +659,17 @@ def _run_communication_phase(
         if not (actor == "bob" and config.controlled_bob_verdict)
     }
     _open_communication_phase(prepared=prepared, runtimes=active_runtimes)
+    # Forecast once each agent has its peer's task brief, before any message is sent.
+    _run_forecast_phase_at(
+        "before-communication",
+        prepared=prepared,
+        state=state,
+        runtimes=runtimes,
+        episode_id=episode_id,
+        config=config,
+        reasoning_traces=reasoning_traces,
+        usage_records=usage_records,
+    )
     # Force the communication phase's single tool by name.
     tool_choice = forced_tool_choice(prepared.task_type, "communication")
     for round_index in range(config.max_rounds):
@@ -750,6 +772,70 @@ def _record_forced_verdict(state: dict[str, Any], agent_id: str) -> None:
             "verdict": "reject",
         }
     )
+
+
+def _run_forecast_phase(
+    *,
+    prepared: PreparedPair,
+    state: dict[str, Any],
+    runtimes: dict[str, AgentRuntime],
+    episode_id: str,
+    config: EpisodeRunConfig,
+    reasoning_traces: list[dict[str, Any]],
+    usage_records: list[dict[str, Any]],
+) -> None:
+    """Collect each agent's private forecast of its peer's verdict on its task.
+
+    The prompt and the forecast stay in the forecasting agent's own history, so they
+    are remembered like any other turn and never reach the peer. An agent that
+    exhausts its attempts without a valid forecast simply has none recorded.
+    """
+    previous_phase = str(state["phase"])
+    set_phase(state, "forecast")
+    active_runtimes = {
+        actor: runtime
+        for actor, runtime in runtimes.items()
+        if not (actor == "bob" and config.controlled_bob_verdict)
+    }
+    for agent_id, runtime in active_runtimes.items():
+        runtime.messages.append(
+            {
+                "role": "user",
+                "content": forecast_phase_message(
+                    episode_number=config.episode_index + 1,
+                    peer=peer_id(agent_id),
+                    position=config.forecast_position,
+                ),
+            }
+        )
+    tool_choice = forced_tool_choice(prepared.task_type, "forecast")
+    for agent_id, runtime in active_runtimes.items():
+        log_progress(
+            f"  Forecast phase ({config.forecast_position}): {agent_id} "
+            f"(episode={episode_id})",
+            config.verbose,
+        )
+        _run_agent_attempts(
+            runtime=runtime,
+            state=state,
+            phase="forecast",
+            tool_choice=tool_choice,
+            episode_id=episode_id,
+            round_index=None,
+            reasoning_traces=reasoning_traces,
+            usage_records=usage_records,
+            config=config,
+        )
+        if agent_state(state, agent_id)["forecast_submission"] is None:
+            log_progress(f"  {agent_id} recorded no forecast", config.verbose)
+    # Hand the shared phase back, so a forecast inside another phase leaves it as found.
+    set_phase(state, previous_phase)
+
+
+def _run_forecast_phase_at(position: str, **phase_kwargs: Any) -> None:
+    """Run the forecast phase only when this run places it at ``position``."""
+    if phase_kwargs["config"].forecast_position == position:
+        _run_forecast_phase(**phase_kwargs)
 
 
 def _open_verdict_phase(
@@ -855,6 +941,16 @@ def _process_episode_outcomes(
             verdict_reasoning=str(verdicts[agent_id].get("reasoning", "")),
             verdict_forced=bool(verdicts[agent_id].get("forced", False)),
         )
+
+    # Pair each private forecast with what happened; the agents are never told.
+    for agent_id in AGENT_IDS:
+        submission = agent_state(state, agent_id)["forecast_submission"]
+        if submission is not None:
+            outcomes.agents[agent_id].forecast = score_forecast(
+                submission,
+                peer_verdict=outcomes.agents[peer_id(agent_id)].verdict,
+                own_expected_verdict=evaluations[agent_id].expected_verdict,
+            )
 
     # With neither reward feedback nor verdict review, add only the internal memory marker.
     for agent_id in AGENT_IDS:
@@ -1021,8 +1117,11 @@ def run_one_episode(
     if config.controlled_bob_verdict:
         load_bob(prepared, runtimes["bob"], config)
     _run_task_phase(**phase_kwargs)
+    # "before-communication" runs inside the communication phase, once it has opened.
     _run_communication_phase(prepared=prepared, **phase_kwargs)
+    _run_forecast_phase_at("before-verdict", prepared=prepared, **phase_kwargs)
     _run_verdict_phase(prepared=prepared, **phase_kwargs)
+    _run_forecast_phase_at("after-verdict", prepared=prepared, **phase_kwargs)
 
     evaluations = {
         agent_id: evaluate_saved_artifact(
