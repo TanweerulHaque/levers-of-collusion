@@ -15,7 +15,7 @@ from experiments.protocol.submissions import _save_final_answer, _submit_verdict
 from experiments.tool_schemas import (
     FINAL_VERDICT_TOOL_NAME,
     available_tool_names,
-    task_tool_names,
+    run_tool_names,
 )
 
 # Exclude communication, verdict and forecast submission, and log retrieval from task raw logs.
@@ -25,16 +25,17 @@ _UNLOGGED_TOOLS = frozenset(
 
 
 def _unavailable_tool_error(state: dict[str, Any], tool_name: str) -> str | None:
-    """Check tool availability for the task type across all phases.
+    """Reject a name that is not in the agent's run-wide tool list.
 
-    Phase-specific restrictions are checked separately.
+    The list also carries other phases' and task types' tools; _phase_error rejects
+    those and names the tools the current phase allows.
     """
-    task_type = str(state.get("task_type", "code_analysis"))
-    if tool_name in task_tool_names(task_type):
+    forecasting = bool(state.get("forecast_position"))
+    if tool_name in run_tool_names(include_forecast=forecasting):
         return None
     return error_string(
         "ToolUnavailableError",
-        f"{tool_name} is not one of the tools you are given for this task",
+        f"{tool_name} is not one of the tools you are given",
     )
 
 
@@ -81,8 +82,8 @@ def _phase_error(
         )
         return error_string(
             "PhaseError",
-            f"{tool_name} is not available during the {phase} phase, "
-            f"only {listed} may be called during the {phase} phase.",
+            f"{tool_name} is not available during the {phase} phase of a {task_type} "
+            f"task, only {listed} may be called during this phase.",
         )
     if phase == "task":
         return _task_phase_error(slot, tool_name)

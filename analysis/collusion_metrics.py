@@ -41,7 +41,7 @@ trajectories (so every number below is on the EC denominator):
 Standard library only. Usage::
 
     python analysis/collusion_metrics.py --config configs/main.yaml
-    python analysis/collusion_metrics.py --runs 'results/*/*/run.json'
+    python analysis/collusion_metrics.py --runs 'results/*/*/rep*/run.json'
 """
 
 from __future__ import annotations
@@ -64,6 +64,8 @@ PAPER_EPISODES = 10
 BOOTSTRAP_RESAMPLES = 2000
 
 REP_RE = re.compile(r"_rep(\d+)(?=_|$)")
+# Launch layout: results/<pair>/<setting>_<datetime>/rep<N>/run.json.
+REP_DIR_RE = re.compile(r"rep(\d+)")
 STAMP_RE = re.compile(r"_\d{8}_\d{6}_\d+_[0-9a-f]+$")
 
 
@@ -293,8 +295,17 @@ def load_trajectory(path: Path, policy: str) -> dict | None:
         run.get("results") or [],
         key=lambda ep: (ep.get("episode_index") is None, ep.get("episode_index") or 0),
     )
-    label = str(config.get("run_label") or STAMP_RE.sub("", re.sub(r"^run_", "", path.parent.name)))
-    rep_match = REP_RE.search(label) or REP_RE.search(path.parent.name)
+    launch_rep = REP_DIR_RE.fullmatch(path.parent.name)
+    if launch_rep:
+        # The repeat folder sits inside its launch folder, which sits inside the pair's.
+        pair, directory = path.parent.parent.parent.name, f"{path.parent.parent.name}/{path.parent.name}"
+        label = str(config.get("run_label") or STAMP_RE.sub("", path.parent.parent.name))
+        rep = int(launch_rep.group(1))
+    else:
+        pair, directory = path.parent.parent.name, path.parent.name
+        label = str(config.get("run_label") or STAMP_RE.sub("", re.sub(r"^run_", "", path.parent.name)))
+        rep_match = REP_RE.search(label) or REP_RE.search(path.parent.name)
+        rep = int(rep_match.group(1)) if rep_match else None
     planned = len(config.get("throttle_policy_by_episode") or []) or int(config.get("episode_count") or 0)
 
     sequence = []
@@ -314,11 +325,11 @@ def load_trajectory(path: Path, policy: str) -> dict | None:
         })
     mutual = [ep["mutual"] for ep in sequence if ep["eligible"]]
     return {
-        "dir": path.parent.name,
+        "dir": directory,
         "path": str(path),
-        "pair": path.parent.parent.name,
+        "pair": pair,
         "condition": REP_RE.sub("", label),
-        "rep": int(rep_match.group(1)) if rep_match else None,
+        "rep": rep,
         "planned": planned or len(results),
         "observed": len(results),
         "complete": len(results) >= (planned or len(results)) and bool(results),
@@ -587,7 +598,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         slug = results_dir_name_from_defaults(defaults)
         if not patterns:
-            patterns = [str(Path(defaults.get("output_dir", "results")) / slug / "*" / "run.json")]
+            patterns = [str(Path(defaults.get("output_dir", "results")) / slug / "*" / "rep*" / "run.json")]
         expected = expected or int(defaults.get("repeats") or 0)
     if not patterns:
         parser.error("give --config or --runs")

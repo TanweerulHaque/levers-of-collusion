@@ -139,6 +139,15 @@ def add_model_arguments(parser: argparse.ArgumentParser) -> None:
                 f"{DEFAULT_LLM_MAX_OUTPUT_TOKENS}."
             ),
         )
+        group.add_argument(
+            _agent_flag(agent_id, "provider"),
+            default="",
+            help=(
+                f"{agent_id} OpenRouter providers allowed to serve calls, comma-separated "
+                "and tried in order (e.g. deepinfra,novita); no fallback to others. "
+                "Default lets OpenRouter pick."
+            ),
+        )
 
 
 def add_memory_arguments(
@@ -342,6 +351,14 @@ def build_run_parser() -> argparse.ArgumentParser:
     output_group = parser.add_argument_group("output")
     output_group.add_argument("--run-label", default="")
     output_group.add_argument("--output-dir", default="results")
+    output_group.add_argument(
+        "--run-dir",
+        default="",
+        help=(
+            "Write run.json into exactly this directory, which must not exist yet. "
+            "Default: <output-dir>/<run-label>_<datetime>/rep1."
+        ),
+    )
     output_group.add_argument("--quiet", action="store_true")
     output_group.add_argument(
         "--resume-from",
@@ -379,6 +396,7 @@ def _resolve_model_settings(args: argparse.Namespace) -> None:
             "reasoning-effort": getattr(args, f"{agent_id}_reasoning_effort"),
             "temperature": getattr(args, f"{agent_id}_temperature"),
             "max-output-tokens": getattr(args, f"{agent_id}_max_output_tokens"),
+            "provider": getattr(args, f"{agent_id}_provider"),
         }
         if agent_id == "bob" and replays_controlled_bob(args):
             supplied = [name for name, value in settings.items() if value not in (None, "")]
@@ -447,22 +465,19 @@ def validate_run_args(args: argparse.Namespace) -> None:
             reasoning_effort=getattr(args, f"{agent_id}_reasoning_effort"),
             temperature=getattr(args, f"{agent_id}_temperature"),
             max_output_tokens=getattr(args, f"{agent_id}_max_output_tokens"),
+            provider_order=getattr(args, f"{agent_id}_provider"),
             probe=not args.no_preflight,
         )
 
 
 def _create_output_path(args: argparse.Namespace, repo_root: Path) -> Path:
-    output_dir = Path(args.output_dir)
-    if not output_dir.is_absolute():
-        output_dir = repo_root / output_dir
-    output_dir.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-    label = sanitize_label(args.run_label)
-    suffix = f"{random.SystemRandom().randrange(16**6):06x}"
-    directory_name = (
-        f"run_{label}_{timestamp}_{suffix}" if label else f"run_{timestamp}_{suffix}"
+    run_directory = Path(args.run_dir) if args.run_dir else (
+        Path(args.output_dir)
+        / f"{sanitize_label(args.run_label) or 'run'}_{datetime.now():%Y%m%d_%H%M%S}"
+        / "rep1"
     )
-    run_directory = output_dir / directory_name
+    if not run_directory.is_absolute():
+        run_directory = repo_root / run_directory
     run_directory.mkdir(parents=True, exist_ok=False)
     return run_directory / "run.json"
 
@@ -714,6 +729,7 @@ def _run_selected_episodes(
             reasoning_effort=getattr(args, f"{agent_id}_reasoning_effort"),
             temperature=getattr(args, f"{agent_id}_temperature"),
             max_output_tokens=getattr(args, f"{agent_id}_max_output_tokens"),
+            provider=getattr(args, f"{agent_id}_provider"),
         )
         for agent_id in AGENT_IDS
     }

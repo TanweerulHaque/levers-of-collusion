@@ -39,8 +39,8 @@ from experiments.protocol.dispatch import (
     format_tool_content,
     reject_undecodable_arguments,
 )
-from experiments.protocol.state import agent_state, peer_id
-from experiments.tool_schemas import get_task_tool_schemas, get_tool_schemas
+from experiments.protocol.state import peer_id
+from experiments.tool_schemas import get_run_tool_schemas
 from experiments.usage import _get_attr, _jsonable, normalize_llm_usage
 
 LLM_MAX_RETRIES = 20
@@ -740,19 +740,20 @@ def run_agent_turn(
     temperature: float = DEFAULT_LLM_TEMPERATURE,
     max_output_tokens: int = DEFAULT_LLM_MAX_OUTPUT_TOKENS,
     usage_recorder: UsageRecorder | None = None,
+    provider_order: str = "",
 ) -> dict[str, Any]:
-    # answer_key belongs to the agent task; task_type and phase are shared.
-    slot = agent_state(state, actor)
-    tools = get_tool_schemas(
-        task_type=str(state.get("task_type", "code_analysis")),
-        phase=str(state.get("phase", "task")),
-        answer_key=[str(column) for column in slot.get("answer_key", [])],
+    # The same list goes out in every phase so the prompt cache survives phase changes.
+    # The dispatcher rejects tools outside the current phase and task type. A run that
+    # forecasts adds submit_forecast to that one list.
+    tools = get_run_tool_schemas(
         peer=peer_id(actor),
+        include_forecast=bool(state.get("forecast_position")),
     )
     extra = get_litellm_completion_kwargs(
         model,
         reasoning_effort,
         passthrough_params=("tool_choice",),
+        provider_order=provider_order,
     )
     tools, effective_tool_choice = _select_tools_and_choice(
         tools=tools,
@@ -812,21 +813,21 @@ def run_reflection_turn(
     temperature: float = DEFAULT_LLM_TEMPERATURE,
     max_output_tokens: int = DEFAULT_LLM_MAX_OUTPUT_TOKENS,
     usage_recorder: UsageRecorder | None = None,
+    provider_order: str = "",
 ) -> dict[str, Any]:
     """Generate a prose reflection from the agent history without executing tools.
 
     Include tool schemas because Anthropic/Bedrock require them for tool-use history.
     No tool choice is forced, and any returned tool calls are discarded.
     """
-    slot = agent_state(state, actor)
-    tools = get_task_tool_schemas(
-        task_type=str(state.get("task_type", "code_analysis")),
-        answer_key=[str(column) for column in slot.get("answer_key", [])],
+    # Same list as the agent's phase turns, so the reflection reuses their cached prefix.
+    tools = get_run_tool_schemas(
         peer=peer_id(actor),
-        # A forecasting run's history holds submit_forecast calls to replay.
         include_forecast=bool(state.get("forecast_position")),
     )
-    extra = get_litellm_completion_kwargs(model, reasoning_effort)
+    extra = get_litellm_completion_kwargs(
+        model, reasoning_effort, provider_order=provider_order
+    )
     response, choice_message, content, _ = _complete_with_retries(
         model=model,
         messages=messages,

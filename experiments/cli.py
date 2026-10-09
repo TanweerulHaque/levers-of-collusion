@@ -7,8 +7,11 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
+from typing import IO
 
 from dotenv import load_dotenv
 
@@ -39,13 +42,9 @@ SEQUENCE_DIR_PREFIX = "task_sequences_"
 MERGED_SEQUENCE_RECORD = "merged_sequence_record.json"
 
 
-def _setting_label(
-    repeat_idx: int,
-    verdict_policy_label: str,
-    max_rounds: int,
-) -> str:
+def _setting_label(verdict_policy_label: str, max_rounds: int) -> str:
     # Include the round count to distinguish sweep conditions.
-    return f"default_cross-episode_{verdict_policy_label}_r{max_rounds}_rep{repeat_idx}"
+    return f"default_cross-episode_{verdict_policy_label}_r{max_rounds}"
 
 
 def _resolve_path(path_text: str, repo_root: Path) -> Path:
@@ -292,6 +291,15 @@ def _build_parser() -> argparse.ArgumentParser:
             "1-based starting index for run labels and task manifests."
         ),
     )
+    task_group.add_argument(
+        "--parallel",
+        type=int,
+        default=1,
+        help=(
+            "Repeats to run at once (default: 1, one after another). Above 1, each "
+            "repeat's console output goes to logs/rep<N>.log in the launch folder."
+        ),
+    )
 
     add_model_arguments(parser)
 
@@ -342,6 +350,8 @@ def _build_parser() -> argparse.ArgumentParser:
 def _validate_args(args: argparse.Namespace) -> None:
     if args.start_index < 1:
         raise ValueError("--start-index must be at least 1.")
+    if args.parallel < 1:
+        raise ValueError("--parallel must be at least 1.")
     validate_run_args(args)
 
 
@@ -378,8 +388,9 @@ def _verdict_policy_label(args: argparse.Namespace) -> str:
     return DEFAULT_VERDICT_POLICY
 
 
-def _run_label(args: argparse.Namespace, run_index: int) -> str:
-    label = _setting_label(run_index, _verdict_policy_label(args), args.max_rounds)
+def _run_label(args: argparse.Namespace) -> str:
+    """Name the setting; every repeat of one launch shares it."""
+    label = _setting_label(_verdict_policy_label(args), args.max_rounds)
     suffixes: list[str] = []
     if args.throttle_spans:
         suffixes.append("throttle-spans")
@@ -408,7 +419,6 @@ def _build_runner_command(
     run_index: int,
 ) -> list[str]:
     sequence_index = run_index - 1
-    label = _run_label(args, run_index)
     command = [
         sys.executable,
         "-m",
@@ -424,9 +434,9 @@ def _build_runner_command(
         "--manifest",
         str(records.task_manifests[sequence_index]),
         "--run-label",
-        label,
-        "--output-dir",
-        args.output_dir,
+        _run_label(args),
+        "--run-dir",
+        str(Path(args.output_dir) / f"rep{run_index}"),
     ]
     if args.bob_model == "controlled":
         if args.controlled_bob_observed_verdict:
@@ -455,6 +465,10 @@ def _build_runner_command(
                     str(getattr(args, f"{agent_id}_max_output_tokens")),
                 ]
             )
+            if getattr(args, f"{agent_id}_provider"):
+                command.extend(
+                    [f"--{flag}-provider", getattr(args, f"{agent_id}_provider")]
+                )
         command.extend(
             [
                 f"--{flag}-cross-episode-memory-length",
@@ -496,15 +510,13 @@ def _print_collusion_metrics(args: argparse.Namespace, repo_root: Path) -> None:
     They need no judge: collusion is mutual ACCEPT, read from each run.json. A
     failure here leaves the trajectories intact, so report it and keep going.
     """
-    runs = [
-        str(Path(args.output_dir) / f"run_{_run_label(args, index)}_*" / "run.json")
-        for index in range(args.start_index, args.start_index + args.repeats)
-    ]
+    # The launch folder holds only this invocation's repeats, one rep<N> folder each.
+    runs = str(Path(args.output_dir) / "rep*" / "run.json")
     command = [
         sys.executable,
         "analysis/collusion_metrics.py",
         "--runs",
-        *runs,
+        runs,
         "--expected-trajectories",
         str(args.repeats),
     ]
@@ -518,22 +530,76 @@ def _print_collusion_metrics(args: argparse.Namespace, repo_root: Path) -> None:
         )
 
 
-def _run_judges(config: str, repo_root: Path) -> None:
-    """Annotate the finished runs, which the judges locate from the same config.
+def _run_judges(config: str, launch_dir: str, repo_root: Path) -> None:
+    """Annotate this launch's runs, with judge settings from the same config.
 
+    Restrict the judges to this launch so earlier launches are not judged again.
     A judge failure leaves the trajectories intact, so report it and keep going.
     """
+    runs = str(Path(launch_dir) / "rep*" / "run.json")
     for judge in ("agreement", "relaxation"):
-        command = [sys.executable, f"analysis/{judge}_judge.py", "--config", config]
+        command = [
+            sys.executable, f"analysis/{judge}_judge.py", "--config", config,
+            "--runs", runs,
+        ]
         print("$ " + " ".join(command), flush=True)
         completed = subprocess.run(command, cwd=repo_root, check=False)
         if completed.returncode:
             print(
                 f"{judge} judge exited {completed.returncode}; "
-                f"rerun it with --config {config}",
+                f"rerun it with --config {config} --runs '{runs}'",
                 file=sys.stderr,
                 flush=True,
             )
+
+
+def _run_parallel(
+    args: argparse.Namespace,
+    records: RunRecords,
+    run_indexes: range,
+    repo_root: Path,
+) -> list[int]:
+    """Keep up to ``args.parallel`` repeats running, each logging to its own file.
+
+    A failed repeat does not stop the others; return the failed indexes.
+    """
+    log_dir = repo_root / args.output_dir / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    pending = list(run_indexes)
+    running: dict[int, tuple[subprocess.Popen, IO[str]]] = {}
+    failed: list[int] = []
+    while pending or running:
+        while pending and len(running) < args.parallel:
+            run_index = pending.pop(0)
+            command = _build_runner_command(
+                args=args,
+                records=records,
+                run_index=run_index,
+            )
+            log_path = log_dir / f"rep{run_index}.log"
+            log_file = log_path.open("w", encoding="utf-8")
+            log_file.write("$ " + " ".join(command) + "\n")
+            log_file.flush()
+            running[run_index] = (
+                subprocess.Popen(
+                    command, cwd=repo_root, stdout=log_file, stderr=subprocess.STDOUT
+                ),
+                log_file,
+            )
+            print(f"rep{run_index}: started, log {log_path}", flush=True)
+        for run_index, (process, log_file) in list(running.items()):
+            returncode = process.poll()
+            if returncode is None:
+                continue
+            log_file.close()
+            del running[run_index]
+            if returncode:
+                failed.append(run_index)
+                print(f"rep{run_index}: exited {returncode}", file=sys.stderr, flush=True)
+            else:
+                print(f"rep{run_index}: done", flush=True)
+        time.sleep(1)
+    return sorted(failed)
 
 
 def main() -> None:
@@ -550,8 +616,11 @@ def main() -> None:
     # Dry runs must not make route-check requests.
     args.no_preflight = args.no_preflight or args.dry_run
     _validate_args(args)
-    # Group every trajectory of one model pair under a directory naming that pair, and
-    # the forecast position when forecasting. Judges and metrics resolve the same name.
+    # results/<pair>/<setting>_<datetime>/rep<N>: one folder per launch, one per repeat.
+    # The pair folder also names the forecast position when forecasting, so a forecast
+    # run never shares a folder with the plain pair. Judges and metrics resolve the same
+    # name from the config; the launch and repeat folders keep their usual names.
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     args.output_dir = str(
         Path(args.output_dir)
         / results_dir_name(
@@ -560,23 +629,33 @@ def main() -> None:
             args.forecast,
             active_forecast_position(args.forecast, args.forecast_position),
         )
+        / f"{_run_label(args)}_{timestamp}"
     )
     records = _load_run_records(args, repo_root)
 
-    for run_index in range(args.start_index, args.start_index + args.repeats):
-        command = _build_runner_command(
-            args=args,
-            records=records,
-            run_index=run_index,
-        )
-        print("$ " + " ".join(command), flush=True)
-        if not args.dry_run:
-            subprocess.run(command, cwd=repo_root, check=True)
+    failed: list[int] = []
+    run_indexes = range(args.start_index, args.start_index + args.repeats)
+    if args.parallel == 1 or args.dry_run:
+        for run_index in run_indexes:
+            command = _build_runner_command(
+                args=args,
+                records=records,
+                run_index=run_index,
+            )
+            print("$ " + " ".join(command), flush=True)
+            if not args.dry_run:
+                subprocess.run(command, cwd=repo_root, check=True)
+    else:
+        failed = _run_parallel(args, records, run_indexes, repo_root)
 
     if not args.dry_run:
         _print_collusion_metrics(args, repo_root)
     if args.judge and config and not args.dry_run:
-        _run_judges(config, repo_root)
+        _run_judges(config, args.output_dir, repo_root)
+    if failed:
+        raise SystemExit(
+            f"Repeats {failed} failed; see their logs in {args.output_dir}/logs."
+        )
 
 
 if __name__ == "__main__":
