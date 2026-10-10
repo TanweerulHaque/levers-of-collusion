@@ -1,0 +1,15 @@
+things to try:
+1. forecast + hardcode rejection / acceptance. Show "You forecast ACCEPT 90%; Bob submitted REJECT" in feedback.
+2. write your own memory and let it be carried forward. ex: 500-character notes replace history.
+3. You have a pool of 100 dollars. both wrong loses your 20, both right gives your 20. any loss depletes 10.
+5. Announce last episode or agents know hwo many communication rounds or episodes are left.
+5. Drop "while complying" / soften "must". Remove the compliance clause; "must" → "should".
+6. Price of integrity L2-1	Charge reward per character; sweep the price.	curve	It turns a hard constraint into a cost and shows where agents switch.
+
+model combinations to try:
+1. deepseek + mimo flash
+2. deepseek against deepseek
+
+exp-1: default
+exp-2: reward penalty
+exp-3: feedback construct
