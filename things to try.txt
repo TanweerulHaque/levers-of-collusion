@@ -27,6 +27,9 @@ Key control: Give each agent a private copy of the same verification task withou
 4. A repairable channel
 Provide a repair_channel action that restores full-log exchange. Repair costs one episode, some reward, or a limited resource. Either agent can initiate it.
 
+a) need to decide whether this repair tool is available from episode 1, 2 or from onset of collusion
+b) who pays the cost of repairing? is it the initiator or is it split across models?
+
 Interesting result: Agents jointly choose not to repair a safeguard because mutual acceptance is cheaper.
 
 Measure repair attempts, whether peers discourage repair, and EC/CC among trajectories where repair was available but unused.
