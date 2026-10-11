@@ -43,6 +43,8 @@ from experiments.prompts.messages import (
     agent_reflection_prompt,
     communication_round_instruction,
     communication_round_tag,
+    episode_feedback_note,
+    episode_opening_note,
     incoming_channel_message,
     peer_delivery_failure_notice,
 )
@@ -377,6 +379,13 @@ def _prepare_agent_task(
     display_id = display_task_id(task)
     slot["display_id"] = display_id
     verdict_prompt = verdict_phase_message(episode_number=episode_number, peer=agent_id)
+    # Both agents are told the same thing, each in their own task opening. A replayed
+    # Bob reads his cached opening, so none is written into his logged prompt.
+    episode_note = (
+        ""
+        if agent_id == "bob" and config.controlled_bob_verdict
+        else episode_opening_note(config.announcement, config.episode_index)
+    )
 
     if is_code_task_type(task_type):
         code_path = task_file_path(task, "code_path", repo_root)
@@ -404,6 +413,7 @@ def _prepare_agent_task(
                 display_id=display_id,
                 code_path=str(code_path.relative_to(repo_root)),
                 function_name=function_name,
+                episode_note=episode_note,
             ),
             judging_prompt=judging_code_task_message(
                 peer=agent_id,
@@ -428,6 +438,7 @@ def _prepare_agent_task(
                 display_id=display_id,
                 source_path=str(source_path.relative_to(repo_root)),
                 extraction_instruction=instruction,
+                episode_note=episode_note,
             ),
             judging_prompt=judging_extraction_task_message(
                 peer=agent_id,
@@ -455,6 +466,7 @@ def _prepare_agent_task(
                 database_path=str(database_path.relative_to(repo_root)),
                 search_prompt=search_prompt,
                 answer_key=answer_key,
+                episode_note=episode_note,
             ),
             judging_prompt=judging_data_search_task_message(
                 peer=agent_id,
@@ -843,6 +855,9 @@ def _process_episode_outcomes(
     if config.controlled_bob_verdict:
         rewards["bob"] = 0
     outcomes = EpisodeOutcomes()
+    # The note is a feedback section of its own: it keeps the episode count in every
+    # memory scope, and it is delivered even when reward and verdict review are off.
+    episodes_note = episode_feedback_note(config.announcement, config.episode_index)
 
     for agent_id in AGENT_IDS:
         peer = peer_id(agent_id)
@@ -858,7 +873,8 @@ def _process_episode_outcomes(
             verdict_forced=bool(verdicts[agent_id].get("forced", False)),
         )
 
-    # With neither reward feedback nor verdict review, add only the internal memory marker.
+    # With no reward feedback, verdict review or episodes note, add only the internal
+    # memory marker.
     for agent_id in AGENT_IDS:
         peer = peer_id(agent_id)
         if config.controlled_bob_verdict:
@@ -867,7 +883,7 @@ def _process_episode_outcomes(
                 continue
 
             feedback = ""
-            if config.reward or config.verdict_evaluation != "none":
+            if config.reward or config.verdict_evaluation != "none" or episodes_note:
                 feedback = (
                     agent_outcome_feedback_message(
                         episode_number=config.episode_index + 1,
@@ -881,6 +897,7 @@ def _process_episode_outcomes(
                         reward=config.reward,
                         verdict_evaluation=config.verdict_evaluation,
                         reward_scheme=config.reward_scheme,
+                        episodes_note=episodes_note,
                     )
                     + "\n\n"
                 )
@@ -895,7 +912,11 @@ def _process_episode_outcomes(
                 outcomes.agents[agent_id].feedback = feedback
                 runtimes[agent_id].messages.append({"role": "user", "content": feedback})
             continue
-        if not config.reward and config.verdict_evaluation == "none":
+        if (
+            not config.reward
+            and config.verdict_evaluation == "none"
+            and not episodes_note
+        ):
             append_outcome_feedback_boundary(runtimes[agent_id].messages)
             continue
         # Use display IDs in feedback to avoid exposing internal manifest identifiers.
@@ -912,6 +933,7 @@ def _process_episode_outcomes(
             reward=config.reward,
             verdict_evaluation=config.verdict_evaluation,
             reward_scheme=config.reward_scheme,
+            episodes_note=episodes_note,
         )
 
     if config.reflection:
@@ -987,6 +1009,7 @@ def run_one_episode(
                 max_rounds=config.max_rounds,
                 reward_objective=config.reward,
                 reward_scheme=config.reward_scheme,
+                announcement=config.announcement,
             )
             for agent_id in AGENT_IDS
         }

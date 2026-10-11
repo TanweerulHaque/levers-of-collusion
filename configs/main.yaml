@@ -35,6 +35,8 @@ run:                                      # flags of python -m experiments
   repeats: 5
   parallel: 5                             # repeats run at once; above 1, logs go to <launch>/logs/rep<N>.log
   output_dir: results
+  # episode_announcement: off             # off | final | countdown: tell agents how many episodes remain
+  # episode_announcement_channels: [system-prompt, episode-opening, feedback]   # where; default all
 
 judge:                                    # both analysis judges
   base_url: https://openrouter.ai/api/v1

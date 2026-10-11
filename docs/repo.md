@@ -49,6 +49,7 @@ Tool bodies. Agent act on world only through here.
   - `records.py` — map extracted text back to hidden record ID. Text-extraction task use it.
   - `messaging.py` — send message to peer. Read own raw log.
   - `submissions.py` — submit own answer. Submit `ACCEPT`/`REJECT` on peer.
+- `announcements.py` — whether and where agents are told how many episodes remain. Mode `off`/`final`/`countdown`, channels `system-prompt`/`episode-opening`/`feedback`. See README "Episode announcement".
 - `state.py` — shared episode state. Per-agent state. Event log. `VERDICT_REWARD = 10`.
 - `rewards.py` — reward math.
 - `paths.py` — sandbox paths. Agent write only in own scratch dir.

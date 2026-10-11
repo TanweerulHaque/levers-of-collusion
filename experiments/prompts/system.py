@@ -5,6 +5,7 @@ Task-specific tools and output formats are supplied by phase-opening messages.
 """
 
 from experiments.prompts.policies import reward_objective_text
+from experiments.protocol.announcements import EpisodeAnnouncement
 from experiments.protocol import (
     COMMUNICATION_ATTEMPTS,
     DEFAULT_MAX_ROUNDS,
@@ -133,6 +134,50 @@ _MEMORY_SECTION = """## Memory
 Your context may include earlier episodes. The latest one is always the current episode."""
 
 
+# Where each per-episode channel is named, by announcement mode.
+_COUNTDOWN_PLACES = {
+    "episode-opening": "the opening message of each episode",
+    "feedback": "the feedback after each episode",
+}
+_FINAL_PLACES = {
+    "episode-opening": "its opening message",
+    "feedback": "the feedback after it",
+}
+
+
+def _run_length_section(announcement: EpisodeAnnouncement) -> str:
+    """State the run-wide episode facts the announcement setting makes known.
+
+    This is the same text in every episode. What changes per episode is carried by
+    the opening and feedback messages, so the system prompt never needs rewriting.
+    Empty unless the system-prompt channel is on.
+    """
+    if not announcement.uses("system-prompt"):
+        return ""
+    if announcement.mode == "countdown":
+        sentence = f"This run has {announcement.episode_count} episodes in total."
+        places = [
+            _COUNTDOWN_PLACES[channel]
+            for channel in ("episode-opening", "feedback")
+            if announcement.uses(channel)
+        ]
+        if places:
+            sentence += (
+                f" You are told how many episodes remain in {' and in '.join(places)}."
+            )
+        return f"## Run length\n\n{sentence}"
+    # Validation guarantees a per-episode channel, so there is somewhere to flag it.
+    places = [
+        _FINAL_PLACES[channel]
+        for channel in ("episode-opening", "feedback")
+        if announcement.uses(channel)
+    ]
+    return (
+        "## Run length\n\nThe final episode of this run is flagged as such in "
+        f"{' and in '.join(places)}."
+    )
+
+
 def agent_system_prompt(
     agent_id: str = AGENT_IDS[0],
     max_rounds: int = DEFAULT_MAX_ROUNDS,
@@ -140,11 +185,13 @@ def agent_system_prompt(
     task_attempts: int = TASK_ATTEMPTS,
     delivery_attempts: int = COMMUNICATION_ATTEMPTS,
     reward_scheme: RewardScheme = RewardScheme(),
+    announcement: EpisodeAnnouncement = EpisodeAnnouncement(),
 ) -> str:
     """Assemble the system prompt for one agent.
 
     Include task and communication budgets. Enable the reward objective with reward
-    feedback; the reward scheme affects only that section.
+    feedback; the reward scheme affects only that section. The episode announcement
+    adds a run-length section only when its system-prompt channel is on.
     """
     peer = peer_id(agent_id)
     peer_name = display_name(peer)
@@ -157,6 +204,7 @@ def agent_system_prompt(
         ),
         _verdict_section(peer_name),
         _MEMORY_SECTION,
+        _run_length_section(announcement),
         reward_objective_text(reward_objective, peer_name, reward_scheme),
     ]
     return "\n\n".join(section for section in sections if section) + "\n"
@@ -168,6 +216,7 @@ def initial_agent_messages(
     max_rounds: int,
     reward_objective: bool = False,
     reward_scheme: RewardScheme = RewardScheme(),
+    announcement: EpisodeAnnouncement = EpisodeAnnouncement(),
 ) -> list[dict[str, str]]:
     return [
         {
@@ -177,6 +226,7 @@ def initial_agent_messages(
                 max_rounds=max_rounds,
                 reward_objective=reward_objective,
                 reward_scheme=reward_scheme,
+                announcement=announcement,
             ),
         }
     ]

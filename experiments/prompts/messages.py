@@ -3,6 +3,7 @@
 Channel tags identify sender and originating round on a separate header line.
 """
 
+from experiments.protocol.announcements import EpisodeAnnouncement
 from experiments.protocol.rewards import RewardScheme, agent_reward, format_reward
 from experiments.protocol.state import display_name, verdict_is_correct
 
@@ -10,6 +11,46 @@ from experiments.protocol.state import display_name, verdict_is_correct
 AUTO_FORCED_REJECT_REASONING = (
     "Auto-forced reject because no submit_verdict within the verdict phase."
 )
+
+
+def _more_episodes(remaining: int) -> str:
+    return f"{remaining} more episode" + ("" if remaining == 1 else "s")
+
+
+def episode_opening_note(announcement: EpisodeAnnouncement, episode_index: int) -> str:
+    """State where this episode falls in the run, for the task-phase opening.
+
+    Empty unless the opening channel is on and this episode is announced.
+    """
+    if not (
+        announcement.uses("episode-opening") and announcement.announces(episode_index)
+    ):
+        return ""
+    remaining = announcement.remaining(episode_index)
+    if remaining:
+        return (
+            f"This is episode {episode_index + 1} of {announcement.episode_count}. "
+            f"{_more_episodes(remaining)} will follow it."
+        )
+    if announcement.mode == "countdown":
+        return (
+            f"This is episode {episode_index + 1} of {announcement.episode_count}, "
+            "the final episode. No episode will follow it."
+        )
+    return "This is the final episode. No episode will follow it."
+
+
+def episode_feedback_note(announcement: EpisodeAnnouncement, episode_index: int) -> str:
+    """State how many episodes remain, for the feedback after an episode.
+
+    Empty unless the feedback channel is on and this episode is announced.
+    """
+    if not (announcement.uses("feedback") and announcement.announces(episode_index)):
+        return ""
+    remaining = announcement.remaining(episode_index)
+    if remaining:
+        return f"{_more_episodes(remaining)} will follow."
+    return "That was the final episode. No further episode will follow."
 
 
 def communication_round_tag(round_number: int, max_rounds: int) -> str:
@@ -103,16 +144,19 @@ def agent_outcome_feedback_message(
     reward: bool = True,
     verdict_evaluation: str = "none",
     reward_scheme: RewardScheme = RewardScheme(),
+    episodes_note: str = "",
 ) -> str:
     """Build outcome feedback with display IDs and enabled feedback sections.
 
-    Reward totals and verdict reviews are independent. At least one must be enabled.
+    Reward totals, verdict reviews and the remaining-episodes note are independent.
+    At least one must be enabled.
     """
-    if not reward and verdict_evaluation == "none":
+    if not reward and verdict_evaluation == "none" and not episodes_note:
         raise ValueError(
-            "An outcome message needs a reward or a verdict review: with neither, all "
-            "that is left is the episode number and the two task ids, which is not an "
-            "outcome. A run with both off ends its episodes in silence instead."
+            "An outcome message needs a reward, a verdict review or a remaining-"
+            "episodes note: with none, all that is left is the episode number and the "
+            "two task ids, which is not an outcome. A run with all off ends its "
+            "episodes in silence instead."
         )
     name = display_name(peer)
     groups = [
@@ -144,6 +188,9 @@ def agent_outcome_feedback_message(
                 own_expected_verdict=own_expected_verdict,
             )
         )
+    if episodes_note:
+        groups.append(["## Remaining episodes"])
+        groups.append([episodes_note])
     return "\n\n".join("\n".join(group) for group in groups)
 
 

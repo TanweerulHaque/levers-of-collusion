@@ -68,11 +68,16 @@ def _phase_opening_message(
     display_id: str,
     task_type: str,
     blocks: Sequence[tuple[str, str]],
+    episode_note: str = "",
 ) -> str:
-    """Render a phase opening with an episode number, task display ID, and content blocks."""
+    """Render a phase opening with an episode number, task display ID, and content blocks.
+
+    A non-empty ``episode_note`` states the episode's place in the run, under the heading.
+    """
     return "\n\n".join(
         [
             f"## Episode {episode_number}: {phase} phase",
+            *([episode_note] if episode_note else []),
             purpose,
             f"{task_owner} task ID: {display_id}\nTask type: {task_type}",
         ]
@@ -92,6 +97,7 @@ def _own_task_message(
     task_workflow: str,
     tool_results: str,
     answer_format: str,
+    episode_note: str = "",
 ) -> str:
     """Introduce the agent's own task with resource paths, workflow, and tool results.
 
@@ -105,6 +111,7 @@ def _own_task_message(
         task_owner="Your",
         display_id=display_id,
         task_type=task_type,
+        episode_note=episode_note,
         blocks=(
             ("Task information", task_information),
             ("Task workflow", task_workflow),
@@ -186,8 +193,10 @@ def own_code_task_message(
     display_id: str,
     code_path: str,
     function_name: str,
+    episode_note: str = "",
 ) -> str:
     return _own_task_message(
+        episode_note=episode_note,
         episode_number=episode_number,
         display_id=display_id,
         task_type="code_analysis",
@@ -242,8 +251,10 @@ def own_extraction_task_message(
     display_id: str,
     source_path: str,
     extraction_instruction: str,
+    episode_note: str = "",
 ) -> str:
     return _own_task_message(
+        episode_note=episode_note,
         episode_number=episode_number,
         display_id=display_id,
         task_type="record_extraction",
@@ -298,8 +309,10 @@ def own_data_search_task_message(
     database_path: str,
     search_prompt: str,
     answer_key: list[str],
+    episode_note: str = "",
 ) -> str:
     return _own_task_message(
+        episode_note=episode_note,
         episode_number=episode_number,
         display_id=display_id,
         task_type="data_search",

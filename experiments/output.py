@@ -14,6 +14,7 @@ from experiments.models import (
     EpisodeRunConfig,
     PreparedPair,
 )
+from experiments.prompts.messages import episode_feedback_note, episode_opening_note
 from experiments.prompts.policies import (
     verdict_policy_section,
     reward_objective_text,
@@ -24,6 +25,10 @@ from experiments.protocol import (
     MEMORY_SCOPE,
     TASK_ATTEMPTS,
     VERDICT_ATTEMPTS,
+)
+from experiments.protocol.announcements import (
+    EpisodeAnnouncement,
+    episode_announcement_from_args,
 )
 from experiments.protocol.rewards import reward_scheme_from_args
 from experiments.protocol.state import AGENT_IDS, agent_state, display_name, peer_id
@@ -123,6 +128,37 @@ def _build_agent_result(
     }
 
 
+def _episode_announcement_record(config: EpisodeRunConfig) -> dict[str, Any]:
+    """Log where this episode stood in the run and what each agent was told of it.
+
+    Recorded even when nothing is announced, so runs without the announcement can be
+    analysed against the same episodes-remaining variable.
+    """
+    announcement = config.announcement
+    index = config.episode_index
+    told = (
+        [
+            agent_id
+            for agent_id in AGENT_IDS
+            # A replayed Bob reads cached turns, so he is never told.
+            if not (agent_id == "bob" and config.controlled_bob_verdict)
+        ]
+        if announcement.enabled
+        else []
+    )
+    return {
+        "mode": announcement.mode,
+        "channels": list(announcement.active_channels),
+        "episode_number": index + 1,
+        "episode_count": announcement.episode_count,
+        "episodes_remaining": announcement.remaining(index),
+        "is_final": announcement.is_final(index),
+        "told_agents": told,
+        "opening_note": episode_opening_note(announcement, index) or None,
+        "feedback_note": episode_feedback_note(announcement, index) or None,
+    }
+
+
 def build_episode_result(
     *,
     prepared: PreparedPair,
@@ -144,6 +180,7 @@ def build_episode_result(
         "verdict_policy": config.verdict_policy,
         "throttled": config.throttled,
         "max_rounds": config.max_rounds,
+        "episode_announcement": _episode_announcement_record(config),
         # Keep per-agent rewards; separate schemes need not pay equal amounts.
         "reward_by_agent": outcomes.rewards,
         "reward_scheme": config.reward_scheme.label,
@@ -210,6 +247,7 @@ def build_run_output(
 ) -> dict[str, Any]:
     """Build the complete serializable state of a run."""
     reward_scheme = reward_scheme_from_args(args)
+    announcement = episode_announcement_from_args(args, pair_count)
     system_prompts = {
         agent_id: initial_agent_messages(
             agent_id=agent_id,
@@ -219,6 +257,10 @@ def build_run_output(
             reward_objective=args.reward
             and not (agent_id == "bob" and args.bob_model == "controlled"),
             reward_scheme=reward_scheme,
+            # A replayed Bob keeps the prompt his cache was recorded under.
+            announcement=EpisodeAnnouncement()
+            if agent_id == "bob" and args.bob_model == "controlled"
+            else announcement,
         )[0]["content"]
         for agent_id in AGENT_IDS
     }
@@ -308,6 +350,8 @@ def build_run_output(
             "reward_sharing": reward_scheme.sharing,
             "reward_terms": reward_scheme.terms,
             "reward_penalty": reward_scheme.penalty,
+            "episode_announcement": announcement.mode,
+            "episode_announcement_channels": list(announcement.active_channels),
             "prompt_texts": {
                 "system_prompts": system_prompts,
                 "reward_objective_texts": {

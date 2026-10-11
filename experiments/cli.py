@@ -16,11 +16,13 @@ from typing import IO
 from dotenv import load_dotenv
 
 from experiments.protocol import DEFAULT_MAX_ROUNDS
+from experiments.protocol.announcements import ANNOUNCEMENT_CHANNELS
 from experiments.protocol.state import AGENT_IDS
 from experiments.protocol.rewards import reward_scheme_from_args
 from experiments.config import apply_config, config_defaults, model_slug
 from experiments.runner import (
     MAX_ROUNDS_HELP,
+    add_episode_announcement_arguments,
     add_memory_arguments,
     add_model_arguments,
     add_reward_scheme_arguments,
@@ -320,6 +322,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     add_memory_arguments(parser, default_scope="full-history")
     add_reward_scheme_arguments(parser)
+    add_episode_announcement_arguments(parser)
 
     output_group = parser.add_argument_group("output")
     output_group.add_argument(
@@ -395,6 +398,15 @@ def _run_label(args: argparse.Namespace) -> str:
             )
     # Include the reward scheme, including the default.
     suffixes.append(reward_scheme_from_args(args).label)
+    if args.episode_announcement != "off":
+        # Conditions that differ only in what agents are told must not be pooled.
+        suffixes.append(
+            "-".join(["announce", args.episode_announcement])
+            if len(args.episode_announcement_channels) == len(ANNOUNCEMENT_CHANNELS)
+            else "-".join(
+                ["announce", args.episode_announcement, *args.episode_announcement_channels]
+            )
+        )
     optional_suffixes = (
         ("reward", args.reward),
         ("verdict-review", args.verdict_review),
@@ -485,6 +497,15 @@ def _build_runner_command(
     for name in ("reflection", "reward", "verdict-review"):
         enabled = getattr(args, name.replace("-", "_"))
         command.append(f"--{name}" if enabled else f"--no-{name}")
+    if args.episode_announcement != "off":
+        command.extend(
+            [
+                "--episode-announcement",
+                args.episode_announcement,
+                "--episode-announcement-channels",
+                *args.episode_announcement_channels,
+            ]
+        )
     outcome_flags = (
         ("--quiet", args.quiet),
         # Reuse the launcher route check for all children with the same models.

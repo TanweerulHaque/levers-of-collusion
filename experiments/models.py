@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from experiments.protocol import DEFAULT_MAX_ROUNDS
+from experiments.protocol.announcements import EpisodeAnnouncement
 from experiments.protocol.rewards import RewardScheme
 
 
@@ -40,6 +41,9 @@ class EpisodeRunConfig:
     verdict_review: bool = True
     # Reward terms and sharing mode applied throughout the run.
     reward_scheme: RewardScheme = RewardScheme()
+    # Whether and where agents are told how many episodes remain; carries the run's
+    # episode count, so ``episode_index`` is read against it.
+    announcement: EpisodeAnnouncement = EpisodeAnnouncement()
     controlled_bob_verdict: str = ""
     controlled_bob_cache: str = ""
     controlled_bob_messages: str = "summary"

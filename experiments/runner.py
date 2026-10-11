@@ -37,6 +37,14 @@ from experiments.protocol import (
     DEFAULT_MAX_ROUNDS,
     MEMORY_SCOPE,
 )
+from experiments.protocol.announcements import (
+    ANNOUNCEMENT_CHANNELS,
+    ANNOUNCEMENT_MODES,
+    DEFAULT_ANNOUNCEMENT_MODE,
+    EpisodeAnnouncement,
+    episode_announcement_from_args,
+    validate_announcement_args,
+)
 from experiments.protocol.rewards import (
     DEFAULT_REWARD_PENALTY,
     DEFAULT_REWARD_SHARING,
@@ -215,6 +223,42 @@ def add_reward_scheme_arguments(parser: argparse.ArgumentParser) -> None:
     )
 
 
+ANNOUNCEMENT_MODE_HELP = {
+    "off": "agents are not told how many episodes remain (default)",
+    "final": "only the last episode is flagged as the last",
+    "countdown": "every episode states how many episodes remain",
+}
+
+
+def add_episode_announcement_arguments(parser: argparse.ArgumentParser) -> None:
+    group = parser.add_argument_group("episode announcement")
+    group.add_argument(
+        "--episode-announcement",
+        choices=ANNOUNCEMENT_MODES,
+        default=DEFAULT_ANNOUNCEMENT_MODE,
+        help=(
+            "Tell agents where they are in the run. "
+            + "; ".join(f"{name}: {text}" for name, text in ANNOUNCEMENT_MODE_HELP.items())
+            + ". Every episode is logged with its episodes-remaining count either way."
+        ),
+    )
+    group.add_argument(
+        "--episode-announcement-channels",
+        nargs="+",
+        choices=ANNOUNCEMENT_CHANNELS,
+        default=None,
+        metavar="CHANNEL",
+        help=(
+            "Where the announcement appears, among "
+            + ", ".join(ANNOUNCEMENT_CHANNELS)
+            + " (default: all). system-prompt states run-wide facts only; "
+            "episode-opening is the task-phase opening; feedback is the outcome "
+            "message, which memory keeps under every cross-episode scope. Requires "
+            "--episode-announcement final or countdown."
+        ),
+    )
+
+
 def add_verdict_review_arguments(group) -> None:
     group.add_argument(
         "--verdict-review",
@@ -312,6 +356,8 @@ def build_run_parser() -> argparse.ArgumentParser:
 
     add_reward_scheme_arguments(parser)
 
+    add_episode_announcement_arguments(parser)
+
     output_group = parser.add_argument_group("output")
     output_group.add_argument("--run-label", default="")
     output_group.add_argument("--output-dir", default="results")
@@ -406,6 +452,7 @@ def validate_run_args(args: argparse.Namespace) -> None:
                 f"{_agent_flag(agent_id, 'max-output-tokens')} must be at least 1."
             )
     _resolve_feedback_settings(args)
+    validate_announcement_args(args)
     # Validate manually constructed options as well as parser-generated values.
     reward_scheme_from_args(args)
     controlled = getattr(args, "bob_model", "") == "controlled"
@@ -489,6 +536,7 @@ def _resume_state(
     args: argparse.Namespace,
     base_agent_messages: dict[str, list[dict[str, Any]]],
     reward_scheme: RewardScheme,
+    announcement: EpisodeAnnouncement,
     manifest_path: Path | None,
     episode_count: int,
 ) -> tuple[list[dict[str, Any]], dict[str, list[dict[str, Any]]]]:
@@ -535,7 +583,16 @@ def _resume_state(
         "reflection": args.reflection,
         "reward": args.reward,
         "reward_scheme": reward_scheme.label,
+        "episode_announcement": announcement.mode,
+        "episode_announcement_channels": list(announcement.active_channels),
     }
+    # Records from before episode announcements existed were written with none.
+    config.setdefault("episode_announcement", DEFAULT_ANNOUNCEMENT_MODE)
+    config.setdefault("episode_announcement_channels", [])
+    if announcement.enabled:
+        # The total and the final episode follow from the sequence length, so a
+        # different one would put the countdown out of step with the finished episodes.
+        expected["pair_count"] = episode_count
     for key in (
         "controlled_bob_task_model",
         "controlled_bob_verdict",
@@ -622,6 +679,9 @@ def _run_selected_episodes(
         args.bob_max_output_tokens = recorded["max_output_tokens"]
     # Resolve one reward scheme for both scoring and prompt construction.
     reward_scheme = reward_scheme_from_args(args)
+    # The episode count comes from the sequence, so a resumed run counts down from the
+    # same total and its next episode_index is the absolute position in the sequence.
+    announcement = episode_announcement_from_args(args, len(selected.pairs))
     # Build one system prompt per agent; enable the reward objective with reward feedback.
     base_agent_messages = {
         agent_id: initial_agent_messages(
@@ -632,6 +692,10 @@ def _run_selected_episodes(
             reward_objective=args.reward
             and not (agent_id == "bob" and args.bob_model == "controlled"),
             reward_scheme=reward_scheme,
+            # A replayed Bob keeps the prompt his cache was recorded under.
+            announcement=EpisodeAnnouncement()
+            if agent_id == "bob" and args.bob_model == "controlled"
+            else announcement,
         )
         for agent_id in AGENT_IDS
     }
@@ -647,6 +711,7 @@ def _run_selected_episodes(
             args=args,
             base_agent_messages=base_agent_messages,
             reward_scheme=reward_scheme,
+            announcement=announcement,
             manifest_path=selected.manifest_path,
             episode_count=len(selected.pairs),
         )
@@ -699,6 +764,16 @@ def _run_selected_episodes(
         f"penalty {reward_scheme.penalty}",
         True,
     )
+    log_progress(
+        f"Episode announcement: {announcement.mode}"
+        + (
+            f" via {', '.join(announcement.active_channels)}"
+            f" ({announcement.episode_count} episodes)"
+            if announcement.enabled
+            else ""
+        ),
+        True,
+    )
     if completed_episodes:
         log_progress(
             f"Resuming after {completed_episodes}/{len(selected.pairs)} episodes "
@@ -719,9 +794,24 @@ def _run_selected_episodes(
             f"({internal}) [{group}, "
             f"memory={MEMORY_SCOPE}/{args.cross_episode_memory_scope}"
             f"/max_episodes={max_memory_episodes_by_agent}, "
-            f"verdict-policy={verdict_policy}]",
+            f"verdict-policy={verdict_policy}, "
+            f"episodes-left={announcement.remaining(episode_index)}]",
             True,
         )
+        if announcement.enabled:
+            # A replayed Bob reads cached turns, so only Alice is told.
+            told = [
+                agent_id
+                for agent_id in AGENT_IDS
+                if not (agent_id == "bob" and args.bob_model == "controlled")
+            ]
+            log_progress(
+                f"  [announce {announcement.mode}: "
+                f"final={announcement.is_final(episode_index)}, "
+                f"told {'+'.join(told)} via "
+                f"{', '.join(announcement.active_channels)}]",
+                True,
+            )
         result = run_one_episode(
             pair=pair,
             agent_configs=agent_configs,
@@ -736,6 +826,7 @@ def _run_selected_episodes(
                 reward=args.reward,
                 verdict_review=args.verdict_review,
                 reward_scheme=reward_scheme,
+                announcement=announcement,
                 controlled_bob_verdict=args.controlled_bob_verdict
                 if args.bob_model == "controlled"
                 else "",
