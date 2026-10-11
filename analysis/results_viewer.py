@@ -550,22 +550,21 @@ class ViewerHandler(BaseHTTPRequestHandler):
             if parts[1:] == ["tree"]:
                 self._send_json(build_tree(self.results_root))
                 return
-<<<<<<< HEAD
             if parts[1:] == ["collusion"]:
                 # EC, TC and CC need every trajectory of a condition, so this works on
                 # the whole results tree instead of one run. policy=all counts any episode.
                 query = parse_qs(urlparse(self.path).query)
                 policy = query.get("policy", [collusion_metrics.DEFAULT_POLICY])[0]
                 self._send_json(collusion_metrics.analyze(
-                    sorted(self.results_root.glob("*/*/run.json")),
+                    # Launch layout results/<pair>/<launch>/rep<N>, and older results/<pair>/<run>.
+                    sorted({*self.results_root.glob("*/*/rep*/run.json"),
+                            *self.results_root.glob("*/*/run.json")}),
                     "" if policy == "all" else policy,
                     query.get("incomplete", ["0"])[0] == "1",
                 ))
-||||||| 21a0783
-=======
+                return
             if len(parts) == 4 and parts[1] == "launch":
                 self._send_json(launch_summary(self._resolve_launch(parts[2], parts[3])))
->>>>>>> main
                 return
             if len(parts) == 5 and parts[1] == "run":
                 run_dir = self._resolve_run(parts[2], parts[3])
@@ -802,6 +801,13 @@ PAGE = r"""<!doctype html>
   .strip.dim .cell, .strip .cell.dim { opacity: 0.45; }
   .cell.verdict { font-size: 11px; }
   .warn { font-size: 12px; margin: 0 0 6px; color: var(--neg); }
+  .hbar { display: grid; grid-template-columns: minmax(90px, 140px) 1fr minmax(120px, auto); gap: 10px;
+    align-items: center; padding: 3px 0; font-size: 12px; }
+  .hbar .track { background: var(--panel-2); border-radius: 4px; height: 14px; overflow: hidden; }
+  .hbar .fill { height: 100%; border-radius: 4px; min-width: 1px; }
+  .hbar .nums { font-variant-numeric: tabular-nums; color: var(--muted); }
+  .outcomes h4 { margin: 16px 0 6px; font-size: 13px; }
+  .outcomes td.num, .outcomes th.num { text-align: right; font-variant-numeric: tabular-nums; }
   .tip { position: fixed; z-index: 20; display: none; pointer-events: none; max-width: 320px;
     background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px 9px;
     font-size: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.18); }
@@ -1906,6 +1912,96 @@ function trajectoryStrip(group) {
   return el("div", {}, el("div", { class: "striproll" }, grid), legend);
 }
 
+
+/* ---------- verdict pairs, accuracy and reward values of one condition ---------- */
+
+const PAIR_LABELS = { AA: "accept-accept", RR: "reject-reject", AR: "accept-reject (Alice A, Bob R)",
+  RA: "reject-accept (Alice R, Bob A)", other: "no verdict" };
+const PAIR_COLORS = { AA: "var(--c-ec)", RR: "var(--c-cc)", AR: "var(--c-tc)", RA: "var(--accent)", other: "var(--muted)" };
+const repName = (row) => row.rep !== null && row.rep !== undefined ? "rep" + row.rep : row.dir.slice(0, 10);
+const sd = (v) => v === null || v === undefined ? "" : " · sd " + (v * 100).toFixed(1);
+const signed = (v, d) => v === null || v === undefined ? "—" : (v >= 0 ? "+" : "") + v.toFixed(d === undefined ? 1 : d);
+
+function hbar(label, fraction, color, nums, tip) {
+  const fill = el("div", { class: "fill", style: "width:" + Math.max(0, Math.min(1, fraction || 0)) * 100 + "%;background:" + color });
+  const row = el("div", { class: "hbar" }, el("div", { text: label }), el("div", { class: "track" }, fill),
+    el("div", { class: "nums", text: nums }));
+  if (tip) {
+    row.addEventListener("mousemove", (evt) => showTip(evt, tip));
+    row.addEventListener("mouseleave", hideTip);
+  }
+  return row;
+}
+
+function simpleTable(head, rows) {
+  return el("div", { class: "tablewrap" }, el("table", {},
+    el("thead", {}, el("tr", {}, head.map((c, i) => el("th", { class: i ? "num" : "", text: c })))),
+    el("tbody", {}, rows.map((r) => el("tr", {}, r.map((c, i) => el("td", { class: i ? "num" : "", text: c })))))));
+}
+
+function outcomesSection(group) {
+  const out = group.outcomes;
+  const box = el("div", { class: "outcomes" });
+  if (!out || !out.trajectories) return box;
+  const keys = ["AA", "RR", "AR", "RA"].concat(out.pairs.mean_share.other ? ["other"] : []);
+
+  box.append(el("h3", { style: "margin-top:16px", text: "verdict pairs" }));
+  box.append(el("p", { class: "sub muted", style: "margin:0 0 6px",
+    text: "Share of counted episodes, averaged over " + out.trajectories + " trajectories (each trajectory counts once). Alice's verdict first." }));
+  for (const k of keys) {
+    box.append(hbar(PAIR_LABELS[k], out.pairs.mean_share[k], PAIR_COLORS[k],
+      pct1(out.pairs.mean_share[k]) + sd(out.pairs.std_share[k]),
+      [PAIR_LABELS[k], "mean over trajectories " + pct1(out.pairs.mean_share[k]), "pooled over episodes " + pct1(out.pairs.pooled_share[k])]));
+  }
+  box.append(el("details", {}, el("summary", { text: "per trajectory" }),
+    simpleTable(["trajectory", "AA", "RR", "AR", "RA", "episodes"],
+      out.pairs.per_trajectory.map((r) => [repName(r)].concat(["AA", "RR", "AR", "RA"].map((k) => pct1(r.share[k])), [r.episodes])))));
+
+  box.append(el("h3", { style: "margin-top:16px", text: "accuracy of each agent" }));
+  const acc = out.accuracy;
+  const tiles = el("div", { class: "tiles" });
+  for (const [kind, title] of [["verdict", "verdict accuracy"], ["task", "task accuracy"]]) {
+    for (const agent of ["alice", "bob"]) {
+      const a = acc[kind][agent];
+      tiles.append(tile(agent + " · " + title, pct1(a.global),
+        a.correct + " of " + a.n + " episodes · mean of trajectories " + pct1(a.mean_of_trajectories) + sd(a.std_of_trajectories)));
+    }
+  }
+  box.append(tiles);
+  box.append(el("p", { class: "sub muted", style: "margin:0 0 6px",
+    text: "Verdict accuracy: the agent's verdict matches the judged task's ground truth. Task accuracy: the agent solved its own task." }));
+  const accRows = acc.verdict.alice.per_trajectory.map((_, i) => [repName(acc.verdict.alice.per_trajectory[i])].concat(
+    ["verdict", "task"].flatMap((kind) => ["alice", "bob"].map((agent) => pct1(acc[kind][agent].per_trajectory[i].accuracy)))));
+  box.append(el("details", {}, el("summary", { text: "per trajectory" }),
+    simpleTable(["trajectory", "Alice verdict", "Bob verdict", "Alice task", "Bob task"], accRows)));
+
+  box.append(el("h3", { style: "margin-top:16px", text: "reward values" }));
+  const reward = out.reward;
+  const rtiles = el("div", { class: "tiles" });
+  for (const agent of ["alice", "bob"]) {
+    const m = reward.mean[agent];
+    rtiles.append(tile(agent + " · mean reward / episode", signed(m.per_episode_mean_of_trajectories),
+      "mean of trajectories" + (m.per_episode_std_of_trajectories === null ? "" : " · sd " + m.per_episode_std_of_trajectories.toFixed(1)) +
+      " · total per trajectory " + signed(m.total_per_trajectory_mean)));
+  }
+  box.append(rtiles);
+  const sign = (v) => v < 0 ? "var(--neg)" : v > 0 ? "var(--pos)" : "var(--muted)";
+  for (const agent of ["alice", "bob"]) {
+    box.append(el("h4", { text: agent + " · share of episodes by reward value" }));
+    const avg = Object.fromEntries(reward.per_trajectory_avg[agent].map((v) => [v.value, v]));
+    for (const v of reward.overall[agent]) {
+      box.append(hbar(signed(v.value, 0), v.share, sign(v.value),
+        pct1(v.share) + " pooled (" + v.count + ") · " + pct1(avg[v.value].mean_share) + " per-trajectory avg",
+        [agent + " reward " + signed(v.value, 0), "pooled over episodes: " + pct1(v.share) + " (" + v.count + " episodes)",
+         "mean of per-trajectory shares: " + pct1(avg[v.value].mean_share) + sd(avg[v.value].std_share)]));
+    }
+  }
+  box.append(el("details", {}, el("summary", { text: "per trajectory (mean reward per episode · total)" }),
+    simpleTable(["trajectory", "Alice mean", "Alice total", "Bob mean", "Bob total"],
+      reward.per_trajectory.map((r) => [repName(r), signed(r.alice.mean), signed(r.alice.total, 0), signed(r.bob.mean), signed(r.bob.total, 0)]))));
+  return box;
+}
+
 function groupCard(group) {
   const cfg = group.config;
   const card = el("div", { class: "card" });
@@ -1954,6 +2050,7 @@ function groupCard(group) {
   card.append(el("h3", { style: "margin-top:16px", text: "trajectories" }));
   card.append(trajectoryStrip(group));
   card.append(el("p", { class: "sub muted", text: "Episodes are numbered from 1 as in the paper; the other tabs show episode_index from 0. Hover a cell for the verdicts." }));
+  card.append(outcomesSection(group));
   return card;
 }
 
