@@ -521,8 +521,9 @@ def _print_collusion_metrics(args: argparse.Namespace, repo_root: Path) -> None:
     They need no judge: collusion is mutual ACCEPT, read from each run.json. A
     failure here leaves the trajectories intact, so report it and keep going.
     """
+    # Each repeat writes to <output_dir>/rep<N>/run.json (see _build_runner_command).
     runs = [
-        str(Path(args.output_dir) / f"run_{_run_label(args, index)}_*" / "run.json")
+        str(Path(args.output_dir) / f"rep{index}" / "run.json")
         for index in range(args.start_index, args.start_index + args.repeats)
     ]
     command = [

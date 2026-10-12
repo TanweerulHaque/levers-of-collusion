@@ -28,6 +28,9 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from run_layout import RUN_GLOBS, describe as describe_layout  # noqa: E402
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
@@ -309,9 +312,8 @@ class Judge:
 
 
 def condition_family(path: Path) -> str:
-    """Return the group label used in analysis outputs."""
-    family = path.parent.parent.parent
-    return "" if family == ROOT else family.name
+    """Return the group label used in analysis outputs: the model-pair folder."""
+    return describe_layout(path)["pair"]
 
 
 def format_gate(name: str, parsed: dict) -> dict:
@@ -350,7 +352,7 @@ def episode_rows(path: Path, run: dict, verdict_policy: str = "") -> list[dict]:
         model = alice_model if alice_model == bob_model else f"{alice_model} | {bob_model}"
         rows.append({
             "run_path": str(path.relative_to(ROOT)),
-            "cond_dir": path.parent.parent.name,
+            "cond_dir": describe_layout(path)["launch"] if describe_layout(path)["layout"] == "launch" else path.parent.name,
             "family": condition_family(path),
             "model": model,
             "rep": rep,
@@ -380,13 +382,15 @@ def select_paths(paths: list[Path], runs_per_condition: int = 0) -> list[Path]:
     latest: dict[tuple[Path, int | str], Path] = {}
     for path in paths:
         rep = run_rep(path)
-        key = (path.parent.parent, rep if rep is not None else path.parent.name)
+        layout = describe_layout(path)
+        key = ((layout["pair"], layout["condition"]), rep if rep is not None else path.parent.name)
         current = latest.get(key)
         if current is None or path.parent.name > current.parent.name:
             latest[key] = path
-    grouped: dict[Path, list[Path]] = defaultdict(list)
+    grouped: dict[tuple, list[Path]] = defaultdict(list)
     for path in latest.values():
-        grouped[path.parent.parent].append(path)
+        layout = describe_layout(path)
+        grouped[(layout["pair"], layout["condition"])].append(path)
     selected = []
     for condition in sorted(grouped, key=str):
         condition_paths = sorted(
@@ -449,7 +453,7 @@ def main() -> int:
         # Judge the run this config produces, writing beside its trajectories.
         slug = model_slug(defaults.get("alice_model", ""), defaults.get("bob_model", ""))
         results = Path(defaults.get("output_dir", "results")) / slug
-        defaults.setdefault("runs", [str(results / "*" / "rep*" / "run.json")])
+        defaults.setdefault("runs", [str(results / pattern) for pattern in RUN_GLOBS])
         apply_config(parser, defaults)
     args = parser.parse_args()
 
