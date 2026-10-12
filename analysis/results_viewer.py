@@ -34,8 +34,18 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import collusion_metrics  # noqa: E402
+import compare_runs  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
+# The page is embedded in this file and read once at start-up, so remember which version
+# of the file this process loaded and warn when the file has changed since.
+SOURCE_PATH = Path(__file__).resolve()
+STARTED_WITH_MTIME = SOURCE_PATH.stat().st_mtime
+STALE_BANNER = (
+    '<div style="background:#a23b3b;color:#fff;padding:8px 16px;font:14px system-ui">'
+    "results_viewer.py changed on disk after this server started, so this page is out of date. "
+    "Stop the server (ctrl-c), start it again, and hard-refresh the browser.</div>"
+)
 DEFAULT_RESULTS = ROOT / "results"
 
 # CSV sidecars written by the judges, in the order the tabs should appear, each
@@ -537,11 +547,25 @@ class ViewerHandler(BaseHTTPRequestHandler):
             raise FileNotFoundError(f"{model}/{launch}")
         return candidate
 
+    def _resolve_directory(self, relative: str) -> tuple[str, Path]:
+        """A model, launch or rep directory below the results root, as (label, path)."""
+        root = self.results_root.resolve()
+        candidate = (root / relative).resolve()
+        if not relative or candidate == root or root not in candidate.parents or not candidate.is_dir():
+            raise FileNotFoundError(f"not a results directory: {relative!r}")
+        return relative, candidate
+
     # --- routes -------------------------------------------------------------
     def do_GET(self) -> None:  # noqa: N802 (http.server API)
         parts = [unquote(p) for p in urlparse(self.path).path.strip("/").split("/") if p]
         if not parts:
-            self._send(HTTPStatus.OK, PAGE.encode("utf-8"), "text/html; charset=utf-8")
+            page = PAGE
+            try:
+                if SOURCE_PATH.stat().st_mtime > STARTED_WITH_MTIME:
+                    page = page.replace("<body>", "<body>" + STALE_BANNER, 1)
+            except OSError:
+                pass
+            self._send(HTTPStatus.OK, page.encode("utf-8"), "text/html; charset=utf-8")
             return
         if parts[0] != "api":
             self._error(HTTPStatus.NOT_FOUND, "not found")
@@ -550,22 +574,34 @@ class ViewerHandler(BaseHTTPRequestHandler):
             if parts[1:] == ["tree"]:
                 self._send_json(build_tree(self.results_root))
                 return
-<<<<<<< HEAD
             if parts[1:] == ["collusion"]:
                 # EC, TC and CC need every trajectory of a condition, so this works on
                 # the whole results tree instead of one run. policy=all counts any episode.
                 query = parse_qs(urlparse(self.path).query)
                 policy = query.get("policy", [collusion_metrics.DEFAULT_POLICY])[0]
                 self._send_json(collusion_metrics.analyze(
-                    sorted(self.results_root.glob("*/*/run.json")),
+                    # Launch layout results/<pair>/<launch>/rep<N>, and older results/<pair>/<run>.
+                    sorted({*self.results_root.glob("*/*/rep*/run.json"),
+                            *self.results_root.glob("*/*/run.json")}),
                     "" if policy == "all" else policy,
                     query.get("incomplete", ["0"])[0] == "1",
                 ))
-||||||| 21a0783
-=======
+                return
+            if parts[1:] == ["compare"]:
+                query = parse_qs(urlparse(self.path).query)
+                sides = []
+                for key in ("a", "b"):
+                    sides.append(self._resolve_directory(query.get(key, [""])[0]))
+                policy = query.get("policy", [collusion_metrics.DEFAULT_POLICY])[0]
+                self._send_json(compare_runs.compare_dirs(
+                    sides[0][1], sides[1][1],
+                    query.get("la", [sides[0][0]])[0], query.get("lb", [sides[1][0]])[0],
+                    "" if policy == "all" else policy,
+                    query.get("incomplete", ["0"])[0] == "1",
+                ))
+                return
             if len(parts) == 4 and parts[1] == "launch":
                 self._send_json(launch_summary(self._resolve_launch(parts[2], parts[3])))
->>>>>>> main
                 return
             if len(parts) == 5 and parts[1] == "run":
                 run_dir = self._resolve_run(parts[2], parts[3])
@@ -628,6 +664,8 @@ PAGE = r"""<!doctype html>
     --state-absent: #f0efec; --state-absent-ink: #52514e;
     /* One categorical slot per metric, fixed across every chart on the collusion tab. */
     --c-ec: #2a78d6; --c-tc: #eb6834; --c-cc: #1baf7a;
+    /* Run A and run B on the compare tab. */
+    --cmp-a: #2a78d6; --cmp-b: #eb6834;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -637,6 +675,7 @@ PAGE = r"""<!doctype html>
       /* The two status steps hold across modes; only the recessive step is restepped. */
       --state-absent: #383835; --state-absent-ink: #c3c2b7;
       --c-ec: #3987e5; --c-tc: #d95926; --c-cc: #199e70;
+      --cmp-a: #3987e5; --cmp-b: #d95926;
     }
   }
   * { box-sizing: border-box; }
@@ -806,6 +845,24 @@ PAGE = r"""<!doctype html>
     background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px 9px;
     font-size: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.18); }
   .tip .b { font-weight: 600; margin-bottom: 2px; }
+  /* compare tab: side A and side B keep one colour on every chart */
+  .cmp-a { color: var(--cmp-a); } .cmp-b { color: var(--cmp-b); }
+  .pick { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; margin-bottom: 12px; }
+  .pick label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+  .pick select { width: 100%; font-size: 13px; }
+  .side-tag { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: baseline; }
+  .pairbar { display: flex; flex-direction: column; gap: 2px; min-width: 120px; }
+  .pairbar .track { background: var(--panel-2); border-radius: 3px; height: 6px; overflow: hidden; }
+  .pairbar .fill { height: 100%; }
+  table.metrics td.num, table.metrics th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  table.metrics td.name { font-family: var(--mono); font-size: 12px; white-space: nowrap; cursor: help; }
+  .delta-up { font-weight: 600; } .sig { font-weight: 700; }
+  .side-by-side { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
+  .side-by-side .card { min-width: 0; }
+  .side-by-side .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  @media (max-width: 1000px) { .side-by-side { grid-template-columns: minmax(0, 1fr); } }
+  .cmp-tile .value { font-size: 22px; }
+  .cmp-tile .arrow { color: var(--muted); padding: 0 6px; }
   @media (max-width: 720px) {
     .kv { grid-template-columns: 1fr; }
     .kv > dt { padding-bottom: 0; border-top: 1px solid var(--line); }
@@ -967,6 +1024,10 @@ function renderModelTabs() {
     class: "tab", role: "tab", "aria-selected": String(state.model === COLLUSION_TAB),
     onclick: () => selectModel(COLLUSION_TAB),
   }, "Collusion", el("small", { text: "EC · TC · CC" })));
+  bar.append(el("button", {
+    class: "tab", role: "tab", "aria-selected": String(state.model === COMPARE_TAB),
+    onclick: () => selectModel(COMPARE_TAB),
+  }, "Compare", el("small", { text: "two runs" })));
   for (const model of state.tree.models) {
     bar.append(el("button", {
       class: "tab", role: "tab", "aria-selected": String(model.name === state.model),
@@ -1065,6 +1126,12 @@ async function selectModel(name) {
     await loadCollusion();
     return;
   }
+  if (name === COMPARE_TAB) {
+    state.run = null;
+    renderModelTabs();
+    await loadCompare();
+    return;
+  }
   const model = currentModel();
   state.launch = model && model.launches.length ? model.launches[0].dir : null;
   state.run = null;
@@ -1138,6 +1205,7 @@ function renderLaunchHead(launch, summary) {
 
 async function loadCurrent() {
   if (state.model === COLLUSION_TAB) { await loadCollusion(); return; }
+  if (state.model === COMPARE_TAB) { await loadCompare(); return; }
   const view = $("#view");
   if (!state.run) { await loadSummary(); return; }
   view.textContent = "";
@@ -2051,6 +2119,537 @@ function renderCollusion() {
   }
 }
 
+/* ---------- compare tab ---------- */
+
+const COMPARE_TAB = "__compare__";
+const compareState = { a: null, b: null, policy: "raw-only", incomplete: false, data: null, error: "" };
+const CMP = { a: "var(--cmp-a)", b: "var(--cmp-b)" };
+
+function compareOptions() {
+  const out = [];
+  for (const model of state.tree.models) {
+    out.push({ group: model.name, value: model.name, label: "all runs in this folder · " + model.runs.length + " reps" });
+    for (const launch of model.launches) {
+      const label = (launch.stamp || "") + " · " + launch.label.replace(/^default_cross-episode_/, "").replace(/^run_/, "");
+      out.push({ group: model.name, value: model.name + "/" + launch.dir,
+        label: "launch " + label + " · " + launch.runs.length + (launch.runs.length === 1 ? " rep" : " reps") });
+      if (launch.runs.length > 1) {
+        for (const dir of launch.runs) {
+          if (dir === launch.dir) continue;
+          out.push({ group: model.name, value: model.name + "/" + dir, label: "      " + dir.split("/").pop() });
+        }
+      }
+    }
+  }
+  return out;
+}
+
+function defaultCompareSelection() {
+  const launches = [];
+  for (const model of state.tree.models) for (const launch of model.launches) launches.push([launch.mtime, model.name + "/" + launch.dir]);
+  launches.sort((x, y) => y[0] - x[0]);
+  return [launches[1] ? launches[1][1] : (launches[0] ? launches[0][1] : null), launches[0] ? launches[0][1] : null];
+}
+
+function setCompareHash() {
+  location.hash = [COMPARE_TAB, compareState.a || "", compareState.b || ""].map(encodeURIComponent).join("/");
+}
+
+function compareLabel(value) {
+  const hit = compareOptions().find((o) => o.value === value);
+  return hit ? hit.group.split("__").map((g) => g.slice(0, 28)).join("__") + " · " + hit.label.trim() : value;
+}
+
+async function loadCompare() {
+  $("#runHead").textContent = "";
+  $("#sectionTabs").textContent = "";
+  $("#runTabs").textContent = "";
+  $("#launchTabs").textContent = "";
+  if (!compareState.a || !compareState.b) {
+    const [a, b] = defaultCompareSelection();
+    compareState.a = compareState.a || a;
+    compareState.b = compareState.b || b;
+  }
+  renderCompareShell();
+  await runCompare();
+}
+
+function renderCompareShell() {
+  const view = $("#view");
+  view.textContent = "";
+  const options = compareOptions();
+  const makeSelect = (which) => {
+    const select = el("select", { onchange: (evt) => { compareState[which] = evt.target.value; runCompare(); } });
+    const groups = new Map();
+    for (const option of options) {
+      if (!groups.has(option.group)) groups.set(option.group, el("optgroup", { label: option.group }));
+      groups.get(option.group).append(el("option", { value: option.value, text: option.label }));
+    }
+    for (const group of groups.values()) select.append(group);
+    select.value = compareState[which] || "";
+    return select;
+  };
+  const policy = el("select", { onchange: (evt) => { compareState.policy = evt.target.value; runCompare(); } },
+    el("option", { value: "raw-only", text: "raw-only (the paper's setting)" }),
+    el("option", { value: "all", text: "any verdict policy" }));
+  policy.value = compareState.policy;
+  const incomplete = el("input", { type: "checkbox", onchange: (evt) => { compareState.incomplete = evt.target.checked; runCompare(); } });
+  incomplete.checked = compareState.incomplete;
+  const swap = el("button", { onclick: () => {
+    [compareState.a, compareState.b] = [compareState.b, compareState.a];
+    renderCompareShell(); runCompare();
+  } }, "Swap A and B");
+  view.append(el("div", { class: "pick" },
+    el("label", {}, el("span", {}, el("span", { class: "side-tag", style: "background:" + CMP.a }), "Run A (baseline)"), makeSelect("a")),
+    el("label", {}, el("span", {}, el("span", { class: "side-tag", style: "background:" + CMP.b }), "Run B (compared)"), makeSelect("b"))));
+  view.append(el("div", { class: "filters" },
+    el("label", {}, "count collusion under ", policy),
+    el("label", {}, incomplete, "include trajectories that stopped early"), swap));
+  view.append(el("div", { id: "compareOut" }));
+}
+
+async function runCompare() {
+  const out = $("#compareOut");
+  if (!out) return;
+  out.textContent = "";
+  if (!compareState.a || !compareState.b) {
+    out.append(el("p", { class: "note", text: "Pick two runs to compare." }));
+    return;
+  }
+  out.append(el("p", { class: "note", text: "Comparing…" }));
+  setCompareHash();
+  const query = "a=" + encodeURIComponent(compareState.a) + "&b=" + encodeURIComponent(compareState.b) +
+    "&la=" + encodeURIComponent(compareLabel(compareState.a)) + "&lb=" + encodeURIComponent(compareLabel(compareState.b)) +
+    "&policy=" + encodeURIComponent(compareState.policy) + "&incomplete=" + (compareState.incomplete ? 1 : 0);
+  const token = query;
+  compareState.token = token;
+  try {
+    const data = await getJSON("/api/compare?" + query);
+    if (compareState.token !== token) return;   // a newer selection superseded this one
+    compareState.data = data;
+  } catch (err) {
+    if (compareState.token !== token) return;
+    out.textContent = "";
+    out.append(el("p", { class: "note", text: "Failed to compare: " + err.message }));
+    return;
+  }
+  out.textContent = "";
+  out.append(renderCompare(compareState.data));
+}
+
+const cmpRate = (v) => v === null || v === undefined ? "—" : (v * 100).toFixed(1) + "%";
+function cmpNum(v, signed) {
+  if (v === null || v === undefined) return "—";
+  const abs = Math.abs(v);
+  const text = abs >= 1000 ? Math.round(abs).toLocaleString() : abs !== 0 && abs < 1 ? abs.toFixed(3) : abs.toFixed(2);
+  return (v < 0 ? "−" : signed ? "+" : "") + text;
+}
+const cmpValue = (v, kind) => kind === "rate" ? cmpRate(v) : cmpNum(v, false);
+function cmpDelta(row) {
+  if (row.diff === null || row.diff === undefined) return "—";
+  return row.kind === "rate" ? (row.diff >= 0 ? "+" : "−") + Math.abs(row.diff * 100).toFixed(1) + " pp" : cmpNum(row.diff, true);
+}
+function cmpCi(row) {
+  const ci = row.diff_ci;
+  if (!ci) return "";
+  return row.kind === "rate"
+    ? "[" + (ci[0] * 100).toFixed(1) + ", " + (ci[1] * 100).toFixed(1) + "]"
+    : "[" + cmpNum(ci[0], true) + ", " + cmpNum(ci[1], true) + "]";
+}
+const cmpStars = (p) => p === null || p === undefined ? "" : p < 0.001 ? "***" : p < 0.01 ? "**" : p < 0.05 ? "*" : "";
+
+function cmpLegend(data) {
+  return el("div", { class: "key" },
+    el("span", { class: "item" }, el("span", { class: "side-tag", style: "background:" + CMP.a }), el("b", { text: "A " }), data.a.label),
+    el("span", { class: "item" }, el("span", { class: "side-tag", style: "background:" + CMP.b }), el("b", { text: "B " }), data.b.label));
+}
+
+function sideCard(side, tag) {
+  const cfg = side.config;
+  const card = el("div", { class: "card" });
+  card.append(el("h3", {}, el("span", { class: "side-tag", style: "background:" + CMP[tag] }), "Run " + tag.toUpperCase() + " · " + side.label));
+  card.append(el("div", { class: "muted", style: "font-family:var(--mono);font-size:11px;overflow-wrap:anywhere", text: side.directory }));
+  const chips = el("div", { class: "chips" });
+  const add = (label, value) => value === null || value === undefined || value === "" ? null
+    : chips.append(el("span", { class: "chip" }, el("b", { text: label + " " }), String(value)));
+  add("trajectories", side.trajectories + (side.found !== side.trajectories ? " of " + side.found : ""));
+  add("episodes", side.episodes);
+  add("alice", cfg.alice); add("bob", cfg.bob);
+  add("rounds", cfg.max_rounds); add("char limit", cfg.char_limit);
+  add("verdict", cfg.verdict_policy); add("reward", cfg.reward_scheme); add("memory", cfg.memory);
+  add("announcement", cfg.episode_announcement + (cfg.episode_announcement_channels && cfg.episode_announcement_channels.length ? " (" + cfg.episode_announcement_channels.join(", ") + ")" : ""));
+  card.append(chips);
+  for (const note of side.notes) card.append(el("p", { class: "warn", text: "! " + note }));
+  return card;
+}
+
+function cmpTile(data, name, label) {
+  const row = data.rows.find((r) => r.metric === name);
+  const node = el("div", { class: "tile cmp-tile" },
+    el("div", { class: "label", text: label }),
+    el("div", { class: "value" },
+      el("span", { class: "cmp-a", text: cmpValue(row.a, row.kind) }), el("span", { class: "arrow", text: "→" }),
+      el("span", { class: "cmp-b", text: cmpValue(row.b, row.kind) })),
+    el("div", { class: "sub", text: "Δ " + cmpDelta(row) + (cmpCi(row) ? " · 95% CI " + cmpCi(row) : "") +
+      (row.p !== null ? " · p " + row.p.toFixed(3) + cmpStars(row.p) : "") }));
+  return node;
+}
+
+/* A and B side by side as two thin bars; mean-kind rows scale to the larger of the two. */
+function pairBar(row) {
+  const peak = row.kind === "rate" ? 1 : Math.max(Math.abs(row.a || 0), Math.abs(row.b || 0)) || 1;
+  const bar = (v, color) => el("div", { class: "track" }, el("div", { class: "fill",
+    style: "width:" + Math.max(0, Math.min(1, Math.abs(v || 0) / peak)) * 100 + "%;background:" + color }));
+  return el("div", { class: "pairbar" }, bar(row.a, CMP.a), bar(row.b, CMP.b));
+}
+
+function metricsTable(rows) {
+  const head = el("tr", {}, [["metric", ""], ["A", "num"], ["B", "num"], ["", ""], ["B − A", "num"], ["95% CI of B − A", "num"], ["p", "num"], ["n (A / B)", "num"]]
+    .map(([text, cls]) => el("th", { class: cls, text: text })));
+  const body = rows.map((r) => {
+    const sig = r.p !== null && r.p < 0.05;
+    const delta = el("td", { class: "num" + (sig ? " sig" : ""), text: cmpDelta(r) });
+    return el("tr", {},
+      el("td", { class: "name", title: r.desc, text: r.metric }),
+      el("td", { class: "num cmp-a", text: cmpValue(r.a, r.kind) }),
+      el("td", { class: "num cmp-b", text: cmpValue(r.b, r.kind) }),
+      el("td", {}, pairBar(r)), delta,
+      el("td", { class: "num muted", text: cmpCi(r) }),
+      el("td", { class: "num", title: r.p_method, text: r.p === null ? "—" : r.p.toFixed(3) + cmpStars(r.p) }),
+      el("td", { class: "num muted", text: Math.round(r.a_n) + " / " + Math.round(r.b_n) }));
+  });
+  return el("div", { class: "tablewrap" }, el("table", { class: "metrics" }, el("thead", {}, head), el("tbody", {}, body)));
+}
+
+/* Horizontal grouped bars: one row per item, an A bar over a B bar, optional CI whiskers. */
+function groupedBars(items, opts) {
+  opts = opts || {};
+  const percent = opts.percent !== false;
+  const W = 680, left = opts.left || 150, right = 70, rowH = 34, top = 6, bottom = 24;
+  const H = top + items.length * rowH + bottom;
+  const peakData = Math.max(0.0001, ...items.flatMap((it) => [it.a || 0, it.b || 0, (it.aCi && it.aCi[1]) || 0, (it.bCi && it.bCi[1]) || 0]));
+  const peak = percent ? Math.min(1, Math.max(0.1, Math.ceil(peakData * 10) / 10)) : peakData * 1.1;
+  const iw = W - left - right;
+  const x = (v) => left + Math.max(0, v) / peak * iw;
+  const svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, class: "chart", role: "img", "aria-label": opts.label || "grouped bars" });
+  const ticks = percent ? [0, 0.25, 0.5, 0.75, 1].map((f) => f * peak) : [0, 0.5, 1].map((f) => f * peak);
+  for (const t of ticks) {
+    svg.append(svgEl("line", { x1: x(t), x2: x(t), y1: top, y2: H - bottom, stroke: "var(--line)" }));
+    svg.append(svgEl("text", { x: x(t), y: H - 8, "text-anchor": "middle" }, percent ? Math.round(t * 100) + "%" : (t < 10 ? t.toFixed(1) : Math.round(t))));
+  }
+  items.forEach((item, i) => {
+    const y0 = top + i * rowH;
+    svg.append(svgEl("text", { x: left - 8, y: y0 + rowH / 2 + 3, "text-anchor": "end" }, item.label));
+    for (const [k, key, ci, color, dy] of [["a", "a", "aCi", CMP.a, 4], ["b", "b", "bCi", CMP.b, 4 + 12]]) {
+      const v = item[key];
+      if (v === null || v === undefined) {
+        svg.append(svgEl("text", { x: left + 4, y: y0 + dy + 9 }, "n/a"));
+        continue;
+      }
+      svg.append(svgEl("rect", { x: left, y: y0 + dy, width: Math.max(x(v) - left, 1), height: 10, rx: 2, fill: color }));
+      if (item[ci]) {
+        svg.append(svgEl("line", { x1: x(item[ci][0]), x2: x(item[ci][1]), y1: y0 + dy + 5, y2: y0 + dy + 5, stroke: "var(--text)", "stroke-width": 1.2 }));
+        for (const edge of item[ci]) svg.append(svgEl("line", { x1: x(edge), x2: x(edge), y1: y0 + dy + 1, y2: y0 + dy + 9, stroke: "var(--text)", "stroke-width": 1.2 }));
+      }
+      const end = Math.max(x(v), item[ci] ? x(item[ci][1]) : 0);
+      svg.append(svgEl("text", { class: "val", x: end + 5, y: y0 + dy + 9 }, percent ? (v * 100).toFixed(1) + "%" : cmpNum(v)));
+    }
+    const hit = svgEl("rect", { x: 0, y: y0, width: W, height: rowH, fill: "transparent" });
+    hit.addEventListener("mousemove", (evt) => showTip(evt, [item.label].concat(item.tip || [
+      "A: " + (percent ? cmpRate(item.a) : cmpNum(item.a)), "B: " + (percent ? cmpRate(item.b) : cmpNum(item.b))])));
+    hit.addEventListener("mouseleave", hideTip);
+    svg.append(hit);
+  });
+  return svg;
+}
+
+/* A and B per episode on one axis; a missing episode breaks the line instead of reading as zero. */
+function pairLines(title, a, b, opts) {
+  opts = opts || {};
+  const percent = opts.percent !== false;
+  const T = Math.max(a.length, b.length);
+  const vals = a.concat(b).filter((v) => v !== null && v !== undefined);
+  const lo = percent ? 0 : Math.min(0, ...vals, 0);
+  const hi = percent ? 1 : Math.max(1, ...vals) * 1.1;
+  const W = 440, H = 200, m = { l: 40, r: 12, t: 12, b: 30 };
+  const iw = W - m.l - m.r, ih = H - m.t - m.b;
+  const x = (t) => m.l + (T === 1 ? iw / 2 : (t - 1) / (T - 1) * iw);
+  const y = (v) => m.t + (1 - (v - lo) / (hi - lo)) * ih;
+  const svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, class: "chart", role: "img", "aria-label": title });
+  const steps = percent ? [0, 0.25, 0.5, 0.75, 1] : [0, 0.5, 1].map((f) => lo + f * (hi - lo));
+  for (const v of steps) {
+    svg.append(svgEl("line", { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v), stroke: "var(--line)" }));
+    svg.append(svgEl("text", { x: m.l - 5, y: y(v) + 4, "text-anchor": "end" }, percent ? Math.round(v * 100) + "%" : Math.round(v * 10) / 10));
+  }
+  const every = T > 12 ? 2 : 1;
+  for (let t = 1; t <= T; t += every) svg.append(svgEl("text", { x: x(t), y: H - 12, "text-anchor": "middle" }, t));
+  for (const [series, color] of [[a, CMP.a], [b, CMP.b]]) {
+    let run = [];
+    const flush = () => { if (run.length > 1) svg.append(svgEl("polyline", { fill: "none", stroke: color, "stroke-width": 2,
+      "stroke-linejoin": "round", points: run.join(" ") })); run = []; };
+    series.forEach((v, i) => {
+      if (v === null || v === undefined) { flush(); return; }
+      run.push(x(i + 1) + "," + y(v));
+      svg.append(svgEl("circle", { cx: x(i + 1), cy: y(v), r: 3.5, fill: color, stroke: "var(--panel)", "stroke-width": 1.5 }));
+    });
+    flush();
+  }
+  const cross = svgEl("line", { y1: m.t, y2: m.t + ih, stroke: "var(--muted)", "stroke-dasharray": "3 3", visibility: "hidden" });
+  svg.append(cross);
+  const hit = svgEl("rect", { x: m.l, y: m.t, width: iw, height: ih, fill: "transparent" });
+  hit.addEventListener("mousemove", (evt) => {
+    const box = svg.getBoundingClientRect();
+    const sx = (evt.clientX - box.left) / box.width * W;
+    const t = Math.min(T, Math.max(1, T === 1 ? 1 : Math.round((sx - m.l) / iw * (T - 1)) + 1));
+    cross.setAttribute("x1", x(t)); cross.setAttribute("x2", x(t)); cross.setAttribute("visibility", "visible");
+    const show = (v) => percent ? cmpRate(v) : cmpNum(v);
+    showTip(evt, [title + " · episode " + t, "A: " + show(a[t - 1]), "B: " + show(b[t - 1])]);
+  });
+  hit.addEventListener("mouseleave", () => { cross.setAttribute("visibility", "hidden"); hideTip(); });
+  svg.append(hit);
+  return el("div", { class: "card", style: "margin-bottom:0" }, el("h3", { text: title }), svg);
+}
+
+/* Each rate-kind difference with its 95% CI against zero: the metrics that moved stand clear of the axis. */
+function forestPlot(rows) {
+  const usable = rows.filter((r) => r.diff !== null && r.diff !== undefined);
+  const W = 680, left = 210, right = 70, rowH = 22, top = 8, bottom = 26;
+  const H = top + usable.length * rowH + bottom;
+  const extent = Math.max(0.05, ...usable.flatMap((r) => [Math.abs(r.diff), r.diff_ci ? Math.abs(r.diff_ci[0]) : 0, r.diff_ci ? Math.abs(r.diff_ci[1]) : 0]));
+  const span = Math.min(1, Math.ceil(extent * 10) / 10);
+  const iw = W - left - right;
+  const x = (v) => left + (v + span) / (2 * span) * iw;
+  const svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, class: "chart", role: "img", "aria-label": "differences with confidence intervals" });
+  for (const t of [-span, -span / 2, 0, span / 2, span]) {
+    svg.append(svgEl("line", { x1: x(t), x2: x(t), y1: top, y2: H - bottom, stroke: t === 0 ? "var(--muted)" : "var(--line)", "stroke-width": t === 0 ? 1.5 : 1 }));
+    svg.append(svgEl("text", { x: x(t), y: H - 8, "text-anchor": "middle" }, (t > 0 ? "+" : "") + Math.round(t * 100) + " pp"));
+  }
+  usable.forEach((r, i) => {
+    const yy = top + i * rowH + rowH / 2;
+    const sig = r.p !== null && r.p < 0.05;
+    svg.append(svgEl("text", { x: left - 8, y: yy + 4, "text-anchor": "end" }, r.metric));
+    if (r.diff_ci) {
+      svg.append(svgEl("line", { x1: x(r.diff_ci[0]), x2: x(r.diff_ci[1]), y1: yy, y2: yy, stroke: "var(--muted)", "stroke-width": 2 }));
+    }
+    svg.append(svgEl("circle", { cx: x(r.diff), cy: yy, r: 5, fill: sig ? "var(--accent)" : "var(--muted)", stroke: "var(--panel)", "stroke-width": 1.5 }));
+    svg.append(svgEl("text", { class: "val", x: W - right + 6, y: yy + 4 }, cmpDelta(r) + cmpStars(r.p)));
+    const hit = svgEl("rect", { x: 0, y: yy - rowH / 2, width: W, height: rowH, fill: "transparent" });
+    hit.addEventListener("mousemove", (evt) => showTip(evt, [r.metric, r.desc, "A " + cmpRate(r.a) + " → B " + cmpRate(r.b),
+      "Δ " + cmpDelta(r) + (cmpCi(r) ? " · CI " + cmpCi(r) : ""), r.p === null ? "p not available" : "p " + r.p.toFixed(3) + " (" + r.p_method + ")"]));
+    hit.addEventListener("mouseleave", hideTip);
+    svg.append(hit);
+  });
+  return svg;
+}
+
+/* EC, TC and CC of both runs on one 0-100% axis: colour is the run, dash is the metric. */
+function combinedCurves(data) {
+  const curves = { a: data.a.collusion.curve, b: data.b.collusion.curve };
+  const T = Math.max(curves.a.rate.length, curves.b.rate.length);
+  const W = 760, H = 300, m = { l: 44, r: 112, t: 14, b: 36 };
+  const iw = W - m.l - m.r, ih = H - m.t - m.b;
+  const x = (t) => m.l + (T === 1 ? iw / 2 : (t - 1) / (T - 1) * iw);
+  const y = (v) => m.t + (1 - v) * ih;
+  const svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, class: "chart", role: "img",
+    "aria-label": "EC, TC and CC by episode for both runs" });
+  for (const v of [0, 0.25, 0.5, 0.75, 1]) {
+    svg.append(svgEl("line", { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v), stroke: "var(--line)" }));
+    svg.append(svgEl("text", { x: m.l - 6, y: y(v) + 4, "text-anchor": "end" }, Math.round(v * 100) + "%"));
+  }
+  const every = T > 12 ? 2 : 1;
+  for (let t = 1; t <= T; t += every) svg.append(svgEl("text", { x: x(t), y: H - m.b + 16, "text-anchor": "middle" }, t));
+  svg.append(svgEl("text", { x: m.l + iw / 2, y: H - 6, "text-anchor": "middle" }, "episode"));
+
+  /* Colour is the metric, so EC of A and B share one hue; the run is told apart by the
+     stroke (A solid, B dashed) and the marker (A circle, B square). */
+  const RUN_STROKE = { a: null, b: "7 4" };
+  const marker = (side, cx, cy, color) => side === "a"
+    ? svgEl("circle", { cx, cy, r: 3.6, fill: color, stroke: "var(--panel)", "stroke-width": 1.5 })
+    : svgEl("rect", { x: cx - 3.6, y: cy - 3.6, width: 7.2, height: 7.2, fill: "var(--panel)", stroke: color, "stroke-width": 2 });
+  const ends = [];
+  for (const side of ["a", "b"]) {
+    for (const metric of METRICS) {
+      const values = curves[side][metric.curve];
+      if (!values.length) continue;
+      svg.append(svgEl("polyline", { fill: "none", stroke: metric.color, "stroke-width": 2.2,
+        "stroke-dasharray": RUN_STROKE[side], "stroke-linejoin": "round", "stroke-linecap": "butt",
+        points: values.map((v, i) => x(i + 1) + "," + y(v)).join(" ") }));
+      values.forEach((v, i) => svg.append(marker(side, x(i + 1), y(v), metric.color)));
+      ends.push({ side, metric, y: y(values[values.length - 1]), value: values[values.length - 1] });
+    }
+  }
+  /* End labels, pushed apart so equal values stay readable. */
+  ends.sort((p, q) => p.y - q.y);
+  ends.forEach((e, i) => { e.ly = i && e.y < ends[i - 1].ly + 14 ? ends[i - 1].ly + 14 : e.y; });
+  for (let i = ends.length - 1; i >= 0; i--) {
+    const limit = i === ends.length - 1 ? H - m.b : ends[i + 1].ly - 14;
+    if (ends[i].ly > limit) ends[i].ly = limit;
+  }
+  for (const e of ends) {
+    svg.append(marker(e.side, x(T) + 12, e.ly, e.metric.color));
+    svg.append(svgEl("text", { class: "val", x: x(T) + 20, y: e.ly + 4 },
+      e.side.toUpperCase() + " " + e.metric.key + " " + Math.round(e.value * 100) + "%"));
+  }
+
+  const cross = svgEl("line", { y1: m.t, y2: m.t + ih, stroke: "var(--muted)", "stroke-dasharray": "3 3", visibility: "hidden" });
+  svg.append(cross);
+  const hit = svgEl("rect", { x: m.l, y: m.t, width: iw, height: ih, fill: "transparent" });
+  hit.addEventListener("mousemove", (evt) => {
+    const box = svg.getBoundingClientRect();
+    const sx = (evt.clientX - box.left) / box.width * W;
+    const t = Math.min(T, Math.max(1, T === 1 ? 1 : Math.round((sx - m.l) / iw * (T - 1)) + 1));
+    cross.setAttribute("x1", x(t)); cross.setAttribute("x2", x(t)); cross.setAttribute("visibility", "visible");
+    const lines = ["episode " + t];
+    for (const metric of METRICS) {
+      lines.push(metric.key + " · " + metric.curveName + ": A " + pct1(curves.a[metric.curve][t - 1]) +
+        " · B " + pct1(curves.b[metric.curve][t - 1]));
+    }
+    showTip(evt, lines);
+  });
+  hit.addEventListener("mouseleave", () => { cross.setAttribute("visibility", "hidden"); hideTip(); });
+  svg.append(hit);
+
+  /* Key: the colour is the metric, the stroke and marker are the run. */
+  const key = el("div", { class: "key" });
+  for (const m2 of METRICS) {
+    key.append(el("span", { class: "item" },
+      svgEl("svg", { viewBox: "0 0 26 8", "aria-hidden": "true" },
+        svgEl("line", { x1: 1, y1: 4, x2: 25, y2: 4, stroke: m2.color, "stroke-width": 3, "stroke-linecap": "round" })),
+      el("span", {}, el("b", { text: m2.key + " " }), m2.curveName)));
+  }
+  const runKey = el("div", { class: "key" });
+  for (const [side, dash] of [["a", null], ["b", "7 4"]]) {
+    const sample = svgEl("svg", { viewBox: "0 0 40 10", "aria-hidden": "true", style: "width:40px;height:10px" },
+      svgEl("line", { x1: 1, y1: 5, x2: 39, y2: 5, stroke: "var(--text)", "stroke-width": 2.2, "stroke-dasharray": dash }));
+    sample.append(side === "a"
+      ? svgEl("circle", { cx: 20, cy: 5, r: 3.6, fill: "var(--text)", stroke: "var(--panel)", "stroke-width": 1.5 })
+      : svgEl("rect", { x: 16.4, y: 1.4, width: 7.2, height: 7.2, fill: "var(--panel)", stroke: "var(--text)", "stroke-width": 2 }));
+    runKey.append(el("span", { class: "item" }, sample,
+      el("span", {}, el("b", { text: side.toUpperCase() + " " }), data[side].label + " · " + (side === "a" ? "solid line, circle" : "dashed line, square"))));
+  }
+  return el("div", {}, runKey, key, svg);
+}
+
+/* Everything the collusion tab shows for one condition, for one side of the comparison. */
+function sideCollusion(side, tag) {
+  const col = side.collusion, s = col.summary;
+  const card = el("div", { class: "card" });
+  /* One line with an ellipsis, so the two cards stay the same height and their rows line up. */
+  card.append(el("h3", { title: side.label, style: "white-space:nowrap;overflow:hidden;text-overflow:ellipsis" },
+    el("span", { class: "side-tag", style: "background:" + CMP[tag] }),
+    "Run " + tag.toUpperCase() + " · " + side.label));
+  if (!s.trajectories) {
+    card.append(el("p", { class: "note", text: "No trajectory with a counted episode." }));
+    return card;
+  }
+  const tiles = el("div", { class: "tiles" });
+  tiles.append(tile("EC · episode-level", pct1(s.EC), s.mutual_accept + " of " + s.episodes + " episodes mutual ACCEPT" + ciText(s.EC_ci)));
+  tiles.append(tile("TC · trajectory-level", pct1(s.TC), s.TC_count + " of " + s.trajectories + " trajectories with ≥1 mutual ACCEPT" + ciText(s.TC_ci)));
+  tiles.append(tile("CC · converged", pct1(s.CC), s.CC_count + " of " + s.trajectories + " converged" + ciText(s.CC_ci)));
+  tiles.append(tile("Mean onset", s.mean_onset === null ? "—" : "episode " + s.mean_onset.toFixed(2),
+    "over trajectories that colluded", s.mean_onset === null));
+  card.append(tiles);
+  card.append(curveTable({ curve: col.curve }));
+  card.append(el("div", { style: "margin-top:12px" }, trajectoryStrip({ per_trajectory: col.per_trajectory })));
+  return card;
+}
+
+function renderCompare(data) {
+  const box = el("div", {});
+  const byName = Object.fromEntries(data.rows.map((r) => [r.metric, r]));
+  box.append(el("div", { class: "grid" }, sideCard(data.a, "a"), sideCard(data.b, "b")));
+  if (!data.a.trajectories || !data.b.trajectories) {
+    box.append(el("p", { class: "note", text: "One side has no trajectory to score." }));
+    return box;
+  }
+  box.append(el("p", { class: "muted", style: "font-size:13px", text:
+    "Δ is B minus A. Confidence intervals bootstrap whole trajectories and p-values reshuffle whole trajectories between the two sides, because the episodes of a trajectory are not independent. " +
+    "With a single trajectory per side the p-value falls back to treating episodes as independent, so read it as a rough guide. " +
+    "Collusion counts throttled episodes under " + (data.policy || "any verdict policy") + "." }));
+
+  const tiles = el("div", { class: "tiles" });
+  for (const [name, label] of [["EC", "EC · episode-level"], ["TC", "TC · trajectory-level"], ["CC", "CC · converged"],
+    ["agreement_rate", "explicit agreement"], ["relaxation_rate", "policy relaxation"], ["joint_reward_mean", "joint reward / episode"]]) {
+    tiles.append(cmpTile(data, name, label));
+  }
+  box.append(tiles);
+
+  const section = (title, ...children) => el("div", { class: "card" }, el("h3", { text: title }), ...children);
+
+  /* collusion */
+  box.append(section("collusion · EC, TC, CC", cmpLegend(data),
+    groupedBars(["EC", "TC", "CC", "EC_first_half", "EC_second_half", "EC_last_3", "EC_final_episode"].map((n) => ({
+      label: n, a: byName[n].a, b: byName[n].b, aCi: byName[n].a_ci, bCi: byName[n].b_ci,
+      tip: [byName[n].desc, "A " + cmpRate(byName[n].a) + " (n=" + Math.round(byName[n].a_n) + ")", "B " + cmpRate(byName[n].b) + " (n=" + Math.round(byName[n].b_n) + ")"] })),
+      { label: "collusion rates", left: 130 })));
+
+  /* EC, TC and CC of both runs, overlapped */
+  box.append(section("EC, TC and CC by episode · both runs overlapped", combinedCurves(data),
+    el("p", { class: "sub muted", text: "EC: share of trajectories in mutual ACCEPT in that episode. TC: share that have colluded at least once so far. " +
+      "CC: share that have converged by that episode. Episodes are numbered from 1 among the counted ones." })));
+  const overlays = el("div", { class: "grid" });
+  for (const metric of METRICS) {
+    overlays.append(pairLines(metric.key + " · " + metric.curveName,
+      data.a.collusion.curve[metric.curve], data.b.collusion.curve[metric.curve]));
+  }
+  box.append(section("each metric, run A against run B", cmpLegend(data), overlays));
+  /* Side by side, so the same rep and episode line up across the two runs. */
+  box.append(el("div", { class: "side-by-side" }, sideCollusion(data.a, "a"), sideCollusion(data.b, "b")));
+
+  /* per-episode curves */
+  const curves = el("div", { class: "grid" });
+  for (const key of ["ec", "agreement", "relaxation", "alice_accept", "bob_accept"]) {
+    curves.append(pairLines(data.a.curves[key].title, data.a.curves[key].values, data.b.curves[key].values));
+  }
+  for (const key of ["alice_reward", "bob_reward"]) {
+    curves.append(pairLines(data.a.curves[key].title, data.a.curves[key].values, data.b.curves[key].values, { percent: false }));
+  }
+  box.append(section("by episode · mean over trajectories (episode 1 is the first)", cmpLegend(data), curves));
+
+  /* verdicts and reward distribution */
+  const pairs = ["AA", "AR", "RA", "RR"];
+  const share = (side, code) => (side.verdict_pairs.find((p) => p.pair === code) || { share: 0 }).share;
+  const count = (side, code) => (side.verdict_pairs.find((p) => p.pair === code) || { count: 0 }).count;
+  const names = { AA: "AA · both accept", AR: "AR · Alice accepts, Bob rejects", RA: "RA · Alice rejects, Bob accepts", RR: "RR · both reject" };
+  box.append(section("verdict pairs · share of episodes", cmpLegend(data),
+    groupedBars(pairs.map((c) => ({ label: names[c], a: share(data.a, c), b: share(data.b, c),
+      tip: [names[c], "A " + cmpRate(share(data.a, c)) + " (" + count(data.a, c) + ")", "B " + cmpRate(share(data.b, c)) + " (" + count(data.b, c) + ")"] })),
+      { label: "verdict pairs", left: 190 })));
+
+  const rewardGrid = el("div", { class: "grid" });
+  for (const agent of ["alice", "bob"]) {
+    const values = [...new Set(data.a.reward_distribution[agent].concat(data.b.reward_distribution[agent]).map((d) => d.value))].sort((p, q) => p - q);
+    const find = (side, v) => side.reward_distribution[agent].find((d) => d.value === v) || { share: 0, count: 0 };
+    rewardGrid.append(el("div", {}, el("h4", { style: "margin:0 0 6px;font-size:13px", text: agent + " · share of episodes by reward value" }),
+      groupedBars(values.map((v) => ({ label: (v > 0 ? "+" : "") + v, a: find(data.a, v).share, b: find(data.b, v).share,
+        tip: ["reward " + v, "A " + cmpRate(find(data.a, v).share) + " (" + find(data.a, v).count + ")", "B " + cmpRate(find(data.b, v).share) + " (" + find(data.b, v).count + ")"] })),
+        { label: agent + " reward distribution", left: 60 })));
+  }
+  box.append(section("reward distribution", cmpLegend(data), rewardGrid));
+
+  /* judges */
+  const judgeNames = ["agreement_rate", "agreement_given_both_accept", "tacit_mutual_accept_rate", "agreement_trajectory_rate",
+    "relaxation_rate", "relaxation_alice_rate", "relaxation_bob_rate", "relaxation_trajectory_rate", "ec_after_relaxation", "ec_after_no_relaxation"];
+  box.append(section("judge metrics", cmpLegend(data),
+    groupedBars(judgeNames.map((n) => ({ label: n, a: byName[n].a, b: byName[n].b, aCi: byName[n].a_ci, bCi: byName[n].b_ci,
+      tip: [byName[n].desc, "A " + cmpRate(byName[n].a) + " (n=" + Math.round(byName[n].a_n) + ")", "B " + cmpRate(byName[n].b) + " (n=" + Math.round(byName[n].b_n) + ")"] })),
+      { label: "judge metrics", left: 210 })));
+
+  /* all differences */
+  box.append(section("every rate · B − A with 95% CI (filled dot: p < 0.05)",
+    forestPlot(data.rows.filter((r) => r.kind === "rate"))));
+
+  /* tables */
+  for (const sec of data.sections) {
+    const rows = data.rows.filter((r) => r.section === sec.id);
+    if (rows.length) box.append(section(sec.title, metricsTable(rows)));
+  }
+  box.append(el("details", {}, el("summary", { text: "runs included" }), el("div", { class: "body" },
+    el("p", { class: "sub" }, el("b", { text: "A: " }), data.a.runs.join(", ") || "none"),
+    el("p", { class: "sub" }, el("b", { text: "B: " }), data.b.runs.join(", ") || "none"))));
+  return box;
+}
+
 async function boot() {
   try {
     state.tree = await getJSON("/api/tree");
@@ -2063,7 +2662,11 @@ async function boot() {
   const hash = location.hash.replace(/^#/, "").split("/").map(decodeURIComponent);
   const wanted = { model: hash[0], launch: hash[1], run: hash[2], section: hash[3] };
   const models = state.tree.models;
-  state.model = wanted.model === COLLUSION_TAB || models.some((m) => m.name === wanted.model)
+  if (wanted.model === COMPARE_TAB) {
+    compareState.a = wanted.launch || compareState.a;
+    compareState.b = wanted.run || compareState.b;
+  }
+  state.model = wanted.model === COLLUSION_TAB || wanted.model === COMPARE_TAB || models.some((m) => m.name === wanted.model)
     ? wanted.model : (models[0] && models[0].name) || null;
   const model = currentModel();
   const launches = model ? model.launches : [];

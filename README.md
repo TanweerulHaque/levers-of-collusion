@@ -187,6 +187,29 @@ python analysis/collusion_metrics.py --runs 'results/*/*/run.json' --json out.js
 Output per condition: config, EC, TC, CC (EC with bootstrap CI, TC and CC with Wilson CI), mean onset episode, and one line per trajectory (`A`=accept, `R`=reject, Alice then Bob).
 `<run>` = `<label>_<datetime>`. One per launch.
 
+## Compare two runs
+
+```bash
+python analysis/compare_runs.py results/<pairA>/<launchA> results/<pairB>/<launchB> \
+    --label-a baseline --label-b announced --json cmp.json --csv cmp.csv
+```
+
+Each argument is a directory relative to the repo root: one `rep<N>`, a launch (all reps), or
+a whole `results/<pair>` folder. Every `run.json` under it is one trajectory; the judge CSVs
+beside it are read too. Sections: collusion (EC, TC, CC, onset, first/second half, last 3,
+final episode), verdicts (accept rate, accuracy, false accept/reject, task difficulty), rewards
+(mean, total, positive/negative share, distribution), channel and cost, agreement judge,
+relaxation judge (per agent, quote-verified, EC after a relaxation).
+
+Difference B−A comes with a trajectory-level bootstrap CI and a permutation p-value that
+reshuffles whole trajectories between the sides. With one trajectory per side it falls back to
+a pooled test that treats episodes as independent; read that as a rough guide.
+`--verdict-policy ''` counts every throttled episode; `--include-incomplete` keeps runs that
+stopped early.
+
+The same comparison is the **Compare** tab of the viewer: pick run A and run B in the two
+dropdowns (a whole folder, a launch, or one rep).
+
 ## Run results viewer
 
 ```bash
