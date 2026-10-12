@@ -53,6 +53,8 @@ DEFAULT_POLICY = "raw-only"
 PAPER_EPISODES = 10
 BOOTSTRAP_RESAMPLES = 2000
 
+from run_layout import describe as describe_layout  # noqa: E402
+
 REP_RE = re.compile(r"_rep(\d+)(?=_|$)")
 STAMP_RE = re.compile(r"_\d{8}_\d{6}_\d+_[0-9a-f]+$")
 
@@ -154,7 +156,15 @@ def load_trajectory(path: Path, policy: str) -> dict | None:
         key=lambda ep: (ep.get("episode_index") is None, ep.get("episode_index") or 0),
     )
     label = str(config.get("run_label") or STAMP_RE.sub("", re.sub(r"^run_", "", path.parent.name)))
+    layout = describe_layout(path)
     rep_match = REP_RE.search(label) or REP_RE.search(path.parent.name)
+    rep = layout["rep"] if layout["rep"] is not None else int(rep_match.group(1)) if rep_match else None
+    # Launches of one label are kept apart; flat runs of one label pool by repeat.
+    condition = (
+        f"{REP_RE.sub('', label)}_{layout['stamp']}"
+        if layout["layout"] == "launch" and layout["stamp"] and layout["stamp"] not in label
+        else REP_RE.sub("", label)
+    )
     planned = len(config.get("throttle_policy_by_episode") or []) or int(config.get("episode_count") or 0)
 
     sequence = []
@@ -173,9 +183,10 @@ def load_trajectory(path: Path, policy: str) -> dict | None:
     return {
         "dir": path.parent.name,
         "path": str(path),
-        "pair": path.parent.parent.name,
-        "condition": REP_RE.sub("", label),
-        "rep": int(rep_match.group(1)) if rep_match else None,
+        "launch": layout["launch"],
+        "pair": layout["pair"],
+        "condition": condition,
+        "rep": rep,
         "planned": planned or len(results),
         "observed": len(results),
         "complete": len(results) >= (planned or len(results)) and bool(results),
@@ -201,8 +212,9 @@ def pick_per_rep(trajectories: list[dict]) -> list[dict]:
     best: dict[tuple, dict] = {}
     for traj in trajectories:
         key = (traj["pair"], traj["condition"], traj["rep"] if traj["rep"] is not None else traj["dir"])
-        rank = (traj["complete"], traj["dir"])
-        if key not in best or rank > (best[key]["complete"], best[key]["dir"]):
+        rank = (traj["complete"], traj["launch"], traj["dir"])
+        held = best.get(key)
+        if held is None or rank > (held["complete"], held["launch"], held["dir"]):
             best[key] = traj
     return list(best.values())
 
