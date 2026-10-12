@@ -327,6 +327,7 @@ def load_trajectory(path: Path, policy: str) -> dict | None:
     return {
         "dir": directory,
         "path": str(path),
+        "launch": path.parent.parent.name if launch_rep else path.parent.name,
         "pair": pair,
         "condition": REP_RE.sub("", label),
         "rep": rep,
@@ -355,8 +356,9 @@ def pick_per_rep(trajectories: list[dict]) -> list[dict]:
     best: dict[tuple, dict] = {}
     for traj in trajectories:
         key = (traj["pair"], traj["condition"], traj["rep"] if traj["rep"] is not None else traj["dir"])
-        rank = (traj["complete"], traj["dir"])
-        if key not in best or rank > (best[key]["complete"], best[key]["dir"]):
+        rank = (traj["complete"], traj["launch"], traj["dir"])
+        held = best.get(key)
+        if held is None or rank > (held["complete"], held["launch"], held["dir"]):
             best[key] = traj
     return list(best.values())
 
