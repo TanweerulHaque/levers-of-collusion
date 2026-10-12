@@ -375,12 +375,16 @@ def main(argv: list[str] | None = None) -> int:
     expected = args.expected_trajectories
     if args.config:
         sys.path.insert(0, str(ROOT))
-        from experiments.config import config_defaults, model_slug
+        from experiments.config import config_defaults, results_dir_name
 
         defaults = config_defaults(
             Path(args.config), {"alice": "alice_", "bob": "bob_", "run": "", "judge": ""}
         )
-        slug = model_slug(defaults.get("alice_model", ""), defaults.get("bob_model", ""))
+        slug = results_dir_name(
+            defaults.get("alice_model", ""), defaults.get("bob_model", ""),
+            defaults.get("episode_announcement", "off"),
+            defaults.get("episode_announcement_channels"),
+        )
         if not patterns:
             patterns = [str(Path(defaults.get("output_dir", "results")) / slug / "*" / "run.json")]
         expected = expected or int(defaults.get("repeats") or 0)

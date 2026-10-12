@@ -19,7 +19,7 @@ from experiments.protocol import DEFAULT_MAX_ROUNDS
 from experiments.protocol.announcements import ANNOUNCEMENT_CHANNELS
 from experiments.protocol.state import AGENT_IDS
 from experiments.protocol.rewards import reward_scheme_from_args
-from experiments.config import apply_config, config_defaults, model_slug
+from experiments.config import apply_config, config_defaults, results_dir_name
 from experiments.runner import (
     MAX_ROUNDS_HELP,
     add_episode_announcement_arguments,
@@ -634,7 +634,12 @@ def main() -> None:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     args.output_dir = str(
         Path(args.output_dir)
-        / model_slug(args.alice_model, args.bob_model)
+        / results_dir_name(
+            args.alice_model,
+            args.bob_model,
+            args.episode_announcement,
+            args.episode_announcement_channels,
+        )
         / f"{_run_label(args)}_{timestamp}"
     )
     records = _load_run_records(args, repo_root)

@@ -11,6 +11,8 @@ from typing import Any
 
 import yaml
 
+from experiments.protocol.announcements import ANNOUNCEMENT_CHANNELS
+
 SECTIONS = ("alice", "bob", "run", "judge")
 
 
@@ -42,3 +44,26 @@ def model_slug(alice_model: str, bob_model: str) -> str:
         for model in (alice_model, bob_model)
     )
     return alice if alice == bob else f"{alice}__{bob}"
+
+
+def results_dir_name(
+    alice_model: str,
+    bob_model: str,
+    announcement: str = "off",
+    channels: "list[str] | tuple[str, ...] | None" = None,
+) -> str:
+    """The pair folder under ``results/``, tagged with the episode announcement in use.
+
+    No announcement keeps the plain model-pair name. ``countdown`` with every channel
+    appends ``_episode_announcement_all``; ``final`` adds the mode
+    (``_episode_announcement_final_all``) and a partial channel set names its channels
+    (``_episode_announcement_feedback``), so runs that differ in what agents are told
+    never share a folder.
+    """
+    name = model_slug(alice_model, bob_model)
+    if not announcement or announcement == "off":
+        return name
+    chosen = [c for c in ANNOUNCEMENT_CHANNELS if c in (channels or ANNOUNCEMENT_CHANNELS)]
+    where = "all" if len(chosen) == len(ANNOUNCEMENT_CHANNELS) else "-".join(chosen)
+    mode = "" if announcement == "countdown" else f"{announcement}_"
+    return f"{name}_episode_announcement_{mode}{where}"
