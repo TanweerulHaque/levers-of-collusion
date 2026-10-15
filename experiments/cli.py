@@ -18,12 +18,14 @@ from dotenv import load_dotenv
 from experiments.protocol import DEFAULT_MAX_ROUNDS
 from experiments.protocol.state import AGENT_IDS
 from experiments.protocol.rewards import reward_scheme_from_args
-from experiments.config import apply_config, config_defaults, model_slug
+from experiments.config import apply_config, config_defaults, results_dir_name
+from experiments.protocol.channel_restore import format_percent
 from experiments.runner import (
     MAX_ROUNDS_HELP,
     add_memory_arguments,
     add_model_arguments,
     add_reward_scheme_arguments,
+    add_restore_channel_arguments,
     add_feedback_arguments,
     replays_controlled_bob,
     validate_run_args,
@@ -320,6 +322,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     add_memory_arguments(parser, default_scope="full-history")
     add_reward_scheme_arguments(parser)
+    add_restore_channel_arguments(parser)
 
     output_group = parser.add_argument_group("output")
     output_group.add_argument(
@@ -401,6 +404,10 @@ def _run_label(args: argparse.Namespace) -> str:
         ("reflection", args.reflection),
     )
     suffixes.extend(name for name, enabled in optional_suffixes if enabled)
+    if args.restore_channel_tool:
+        suffixes.append(
+            f"restore-channel-cost{format_percent(args.restore_channel_cost_percent)}"
+        )
     return "_".join([label, *suffixes])
 
 
@@ -485,6 +492,14 @@ def _build_runner_command(
     for name in ("reflection", "reward", "verdict-review"):
         enabled = getattr(args, name.replace("-", "_"))
         command.append(f"--{name}" if enabled else f"--no-{name}")
+    if args.restore_channel_tool:
+        command.extend(
+            [
+                "--restore-channel-tool",
+                "--restore-channel-cost-percent",
+                format_percent(args.restore_channel_cost_percent),
+            ]
+        )
     outcome_flags = (
         ("--quiet", args.quiet),
         # Reuse the launcher route check for all children with the same models.
@@ -518,6 +533,19 @@ def _print_collusion_metrics(args: argparse.Namespace, repo_root: Path) -> None:
         print(
             f"collusion metrics exited {completed.returncode}; rerun "
             "analysis/collusion_metrics.py on the run directories",
+            file=sys.stderr,
+            flush=True,
+        )
+    if not args.restore_channel_tool:
+        return
+    # The paid channel restore has its own counts: uses, payers, and verdicts with and
+    # without it. Like EC, TC and CC they come from run.json alone.
+    command = [sys.executable, "analysis/restore_channel_metrics.py", "--runs", *runs]
+    completed = subprocess.run(command, cwd=repo_root, check=False)
+    if completed.returncode:
+        print(
+            f"restore channel metrics exited {completed.returncode}; rerun "
+            "analysis/restore_channel_metrics.py on the run directories",
             file=sys.stderr,
             flush=True,
         )
@@ -610,10 +638,22 @@ def main() -> None:
     args.no_preflight = args.no_preflight or args.dry_run
     _validate_args(args)
     # results/<pair>/<setting>_<datetime>/rep<N>: one folder per launch, one per repeat.
+    # The pair folder also names the paid channel restore and any non-default reward
+    # setting, so those conditions never share a folder; judges and metrics resolve
+    # the same name from the config.
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     args.output_dir = str(
         Path(args.output_dir)
-        / model_slug(args.alice_model, args.bob_model)
+        / results_dir_name(
+            args.alice_model,
+            args.bob_model,
+            restore_channel_tool=args.restore_channel_tool,
+            restore_channel_cost_percent=args.restore_channel_cost_percent,
+            reward=args.reward,
+            reward_scope=args.reward_scope,
+            reward_type=args.reward_type,
+            reward_penalty=args.reward_penalty,
+        )
         / f"{_run_label(args)}_{timestamp}"
     )
     records = _load_run_records(args, repo_root)

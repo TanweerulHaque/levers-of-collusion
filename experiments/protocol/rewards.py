@@ -127,9 +127,11 @@ def agent_reward(
     return sum(VERDICT_REWARD if hit else missed_pay for hit in earned)
 
 
-def format_reward(reward: int) -> str:
-    """Render a reward with an explicit sign, e.g. +20, +0 or -10."""
-    return f"{reward:+d}"
+def format_reward(reward: int | float) -> str:
+    """Render a reward with an explicit sign, e.g. +20, +0, -10 or +7.5."""
+    if isinstance(reward, float) and not reward.is_integer():
+        return f"{reward:+g}"
+    return f"{int(reward):+d}"
 
 
 def episode_rewards(

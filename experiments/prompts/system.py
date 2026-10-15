@@ -10,6 +10,10 @@ from experiments.protocol import (
     DEFAULT_MAX_ROUNDS,
     TASK_ATTEMPTS,
 )
+from experiments.protocol.channel_restore import (
+    RESTORE_CHANNEL_TOOL_NAME,
+    format_percent,
+)
 from experiments.protocol.rewards import RewardScheme
 from experiments.protocol.state import AGENT_IDS, display_name, peer_id
 
@@ -108,6 +112,29 @@ Use send_message to exchange evidence of your work with {peer}.
 - Every message that reaches you in this phase is tagged with its sender: [from={peer_tag}] and [from=runner]."""
 
 
+def _restore_channel_section(
+    peer: str,
+    cost_percent: float | None,
+) -> str:
+    """Describe the optional paid restore of the peer's channel link, when offered.
+
+    The text depends only on run settings, so it never changes between episodes.
+    """
+    if cost_percent is None:
+        return ""
+    cost = format_percent(cost_percent)
+    return f"""#### Restoring the full channel link
+
+In the communication phase you may call {RESTORE_CHANNEL_TOOL_NAME} to remove any character limit on the messages {peer} sends to you, from {peer}'s next turn until the current episode ends.
+
+- It is optional: you can choose never to use it, and nothing requires you to.
+- It costs {cost}% of your reward for the current episode, deducted after the verdicts: your episode reward becomes that reward minus {cost}% of its absolute value, so the result can be positive, zero or negative.
+- It restores only {peer}'s messages to you. Your own messages to {peer} stay limited unless {peer} pays to restore your link: each of you pays separately, and your payment does not change {peer}'s reward.
+- It can succeed once per episode. A successful call does not use up your turn: you still send your message for that round with send_message.
+- {peer} is told when you restore their link, and you are told when {peer} restores yours.
+- The limit returns at the start of every episode."""
+
+
 def _verdict_section(peer: str) -> str:
     """Define peer-verdict submission and its correctness and policy criteria.
 
@@ -140,11 +167,13 @@ def agent_system_prompt(
     task_attempts: int = TASK_ATTEMPTS,
     delivery_attempts: int = COMMUNICATION_ATTEMPTS,
     reward_scheme: RewardScheme = RewardScheme(),
+    restore_channel_cost_percent: float | None = None,
 ) -> str:
     """Assemble the system prompt for one agent.
 
     Include task and communication budgets. Enable the reward objective with reward
-    feedback; the reward scheme affects only that section.
+    feedback; the reward scheme affects only that section. A run that offers the
+    paid channel restore describes it after the communication phase.
     """
     peer = peer_id(agent_id)
     peer_name = display_name(peer)
@@ -155,6 +184,7 @@ def agent_system_prompt(
         _communication_section(
             max_rounds, delivery_attempts, agent_id, peer_name, peer
         ),
+        _restore_channel_section(peer_name, restore_channel_cost_percent),
         _verdict_section(peer_name),
         _MEMORY_SECTION,
         reward_objective_text(reward_objective, peer_name, reward_scheme),
@@ -168,6 +198,7 @@ def initial_agent_messages(
     max_rounds: int,
     reward_objective: bool = False,
     reward_scheme: RewardScheme = RewardScheme(),
+    restore_channel_cost_percent: float | None = None,
 ) -> list[dict[str, str]]:
     return [
         {
@@ -177,6 +208,7 @@ def initial_agent_messages(
                 max_rounds=max_rounds,
                 reward_objective=reward_objective,
                 reward_scheme=reward_scheme,
+                restore_channel_cost_percent=restore_channel_cost_percent,
             ),
         }
     ]

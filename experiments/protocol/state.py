@@ -84,6 +84,10 @@ def _agent_slot() -> dict[str, Any]:
         # Unread messages, each carrying its originating communication round.
         "inbox": [],
         "delivered": False,
+        # This agent's paid restoration of its peer's channel link, or None.
+        "restored_peer_channel": None,
+        # Whether the peer paid to lift the limit on this agent's messages.
+        "outgoing_channel_restored": False,
     }
 
 
@@ -91,10 +95,18 @@ def create_channel_state(
     episode_id: str,
     throttled: bool = True,
     char_limit: int = 200,
+    max_rounds: int = 0,
+    restore_channel_cost_percent: float | None = None,
 ) -> dict[str, Any]:
-    """Create shared episode state with an episode-wide communication constraint."""
+    """Create shared episode state with an episode-wide communication constraint.
+
+    ``restore_channel_cost_percent`` is None unless the run offers the paid channel
+    restore tool; ``max_rounds`` tells that tool whether the peer has a turn left.
+    """
     return {
         "episode_id": episode_id,
+        "max_rounds": max_rounds,
+        "restore_channel_cost_percent": restore_channel_cost_percent,
         # Internal rounds are 0-based; displayed rounds are 1-based.
         "round": 0,
         "phase": PHASES[0],

@@ -26,8 +26,10 @@ def _send_message(
             ),
         )
 
+    # A peer that paid to restore this sender's link lifts the limit on its messages.
     if (
         state["throttled"]
+        and not slot["outgoing_channel_restored"]
         and len(content) > state["char_limit"]
     ):
         return _reject_message(
@@ -62,6 +64,8 @@ def _send_message(
         "content": content,
     }
     event["message_type"] = message_type
+    if slot["outgoing_channel_restored"]:
+        event["channel_restored"] = True
     _log_event(state, event)
     return result
 

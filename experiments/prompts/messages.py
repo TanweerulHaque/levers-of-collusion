@@ -3,6 +3,12 @@
 Channel tags identify sender and originating round on a separate header line.
 """
 
+from experiments.protocol.channel_restore import (
+    RESTORE_CHANNEL_TOOL_NAME,
+    format_percent,
+    net_reward,
+    restore_payment,
+)
 from experiments.protocol.rewards import RewardScheme, agent_reward, format_reward
 from experiments.protocol.state import display_name, verdict_is_correct
 
@@ -103,10 +109,14 @@ def agent_outcome_feedback_message(
     reward: bool = True,
     verdict_evaluation: str = "none",
     reward_scheme: RewardScheme = RewardScheme(),
+    restore_channel_cost_percent: float | None = None,
 ) -> str:
     """Build outcome feedback with display IDs and enabled feedback sections.
 
     Reward totals and verdict reviews are independent. At least one must be enabled.
+    ``restore_channel_cost_percent`` is set only when this agent paid to restore its
+    peer's channel link; the reward shown is then net of that payment, with the
+    deduction spelled out beneath it.
     """
     if not reward and verdict_evaluation == "none":
         raise ValueError(
@@ -131,7 +141,19 @@ def agent_outcome_feedback_message(
             own_expected_verdict=own_expected_verdict,
         )
         groups.append(["## Reward"])
-        groups.append([format_reward(paid)])
+        if restore_channel_cost_percent is None:
+            groups.append([format_reward(paid)])
+        else:
+            payment = restore_payment(paid, restore_channel_cost_percent)
+            groups.append(
+                [
+                    format_reward(net_reward(paid, payment)),
+                    f"Verdict reward {format_reward(paid)}, less "
+                    f"{format_percent(payment)} paid for {RESTORE_CHANNEL_TOOL_NAME} "
+                    f"({format_percent(restore_channel_cost_percent)}% of "
+                    f"{format_percent(abs(paid))}).",
+                ]
+            )
     if verdict_evaluation != "none":
         groups.append(["## Verdict review"])
         groups.append(

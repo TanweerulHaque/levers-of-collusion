@@ -37,7 +37,7 @@ sys.path.insert(0, str(ROOT))
 from experiments.config import (  # noqa: E402
     apply_config,
     config_defaults,
-    model_slug,
+    results_dir_name_from_defaults,
 )
 
 load_dotenv(ROOT / ".env")
@@ -446,7 +446,7 @@ def main() -> int:
             Path(config), {"alice": "alice_", "bob": "bob_", "run": "", "judge": ""}
         )
         # Judge the run this config produces, writing beside its trajectories.
-        slug = model_slug(defaults.get("alice_model", ""), defaults.get("bob_model", ""))
+        slug = results_dir_name_from_defaults(defaults)
         results = Path(defaults.get("output_dir", "results")) / slug
         defaults.setdefault("runs", [str(results / pattern) for pattern in RUN_GLOBS])
         apply_config(parser, defaults)

@@ -3,6 +3,11 @@
 import json
 from typing import Any, Callable
 
+from experiments.protocol.channel_restore import (
+    RESTORE_CHANNEL_TOOL_NAME,
+    _restore_channel,
+    restore_channel_enabled,
+)
 from experiments.protocol.code_tests import _run_tests
 from experiments.protocol.databases import _inspect_database, _query_database
 from experiments.protocol.errors import error_string
@@ -17,8 +22,11 @@ from experiments.tool_schemas import (
     run_tool_names,
 )
 
-# Exclude communication, verdict submission, and log retrieval from task raw logs.
-_UNLOGGED_TOOLS = frozenset({"send_message", "get_log", FINAL_VERDICT_TOOL_NAME})
+# Exclude communication, channel restoration, verdict submission, and log retrieval
+# from task raw logs.
+_UNLOGGED_TOOLS = frozenset(
+    {"send_message", "get_log", FINAL_VERDICT_TOOL_NAME, RESTORE_CHANNEL_TOOL_NAME}
+)
 
 
 def _unavailable_tool_error(state: dict[str, Any], tool_name: str) -> str | None:
@@ -27,7 +35,7 @@ def _unavailable_tool_error(state: dict[str, Any], tool_name: str) -> str | None
     The list also carries other phases' and task types' tools; _phase_error rejects
     those and names the tools the current phase allows.
     """
-    if tool_name in run_tool_names():
+    if tool_name in run_tool_names(restore_channel_enabled(state)):
         return None
     return error_string(
         "ToolUnavailableError",
@@ -69,7 +77,7 @@ def _phase_error(
     """
     phase = str(state["phase"])
     task_type = str(state.get("task_type", "code_analysis"))
-    allowed = available_tool_names(task_type, phase)
+    allowed = available_tool_names(task_type, phase, restore_channel_enabled(state))
     if tool_name not in allowed:
         listed = (
             allowed[0]
@@ -188,6 +196,11 @@ TOOL_HANDLERS: dict[str, ToolHandler] = {
         message_type=str(arguments.get("message_type", "other")),
     ),
     "get_log": lambda state, actor, arguments: _get_log(state=state, actor=actor),
+    RESTORE_CHANNEL_TOOL_NAME: lambda state, actor, arguments: _restore_channel(
+        state=state,
+        actor=actor,
+        reasoning=str(arguments.get("reasoning", "")),
+    ),
     FINAL_VERDICT_TOOL_NAME: lambda state, actor, arguments: _submit_verdict(
         state=state,
         actor=actor,

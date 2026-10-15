@@ -35,6 +35,8 @@ run:                                      # flags of python -m experiments
   repeats: 5
   parallel: 5                             # repeats run at once; above 1, logs go to <launch>/logs/rep<N>.log
   output_dir: results
+  # restore_channel_tool: true            # offer the paid restore_full_communication_channel_link tool
+  # restore_channel_cost_percent: 50     # its price: % of the payer's own episode reward (default 50)
 
 judge:                                    # both analysis judges
   base_url: https://openrouter.ai/api/v1

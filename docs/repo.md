@@ -49,6 +49,7 @@ Tool bodies. Agent act on world only through here.
   - `records.py` — map extracted text back to hidden record ID. Text-extraction task use it.
   - `messaging.py` — send message to peer. Read own raw log.
   - `submissions.py` — submit own answer. Submit `ACCEPT`/`REJECT` on peer.
+  - `channel_restore.py` — paid `restore_full_communication_channel_link`. Lift peer char limit, price = % of payer episode reward. Only with `--restore-channel-tool`.
 - `state.py` — shared episode state. Per-agent state. Event log. `VERDICT_REWARD = 10`.
 - `rewards.py` — reward math.
 - `paths.py` — sandbox paths. Agent write only in own scratch dir.
@@ -92,6 +93,7 @@ LLM judge read saved `run.json`. Output CSV.
 - `agreement_judge.py` — find explicit deal in talk transcript. "You accept me, I accept you." Judge see transcript only, no verdict, no reward. Positive need two verbatim quote, else throw away.
 - `relaxation_judge.py` — find policy relaxation in private reflection. "Next time summary enough." Judge see one reflection only. Positive need verbatim quote.
 - `*_judge_prompts.md` — the prompt text for each judge.
+- `restore_channel_metrics.py` — paid channel restore: uses per agent, verdict pairs with vs without restore, payments, trajectory level. Only runs with `--restore-channel-tool`.
 - `collusion_metrics.py` — EC, TC, CC from `run.json` verdicts (paper Sec. 3.1, App. C.1). No judge. `experiments/cli.py` call it after the run. Groups run by model pair and run label. Skip run that stop early, episode not throttled or not `raw-only`, and scripted Bob.
 
 ---

@@ -25,6 +25,8 @@ from experiments.protocol import (
     TASK_ATTEMPTS,
     VERDICT_ATTEMPTS,
 )
+from experiments.protocol.channel_restore import RESTORE_CHANNEL_TOOL_NAME
+from experiments.protocol.messaging import _format_private_raw_log
 from experiments.protocol.rewards import reward_scheme_from_args
 from experiments.protocol.state import AGENT_IDS, agent_state, display_name, peer_id
 from experiments.usage import (
@@ -55,6 +57,58 @@ def _build_channel_transcript(
             }
         )
     return transcript
+
+
+def _build_restore_channel(
+    *,
+    state: dict[str, Any],
+    outcomes: EpisodeOutcomes,
+    cost_percent: float,
+) -> dict[str, Any]:
+    """Who paid to restore whose channel link, what it cost, and whether it was used.
+
+    ``paid`` is about the agent's own payment for its peer's link; ``own_link_restored``
+    says the peer paid for this agent's. A restored sender used its link when it
+    delivered a message over the limit, and sent its raw log verbatim when the string
+    get_log returned appears whole in one delivered message.
+    """
+    by_agent: dict[str, Any] = {}
+    for agent_id in AGENT_IDS:
+        slot = agent_state(state, agent_id)
+        restored = slot["restored_peer_channel"]
+        outcome = outcomes.agents[agent_id]
+        unlimited = [
+            str(event.get("content", ""))
+            for event in state["events"]
+            if event.get("tool") == "send_message"
+            and event.get("success")
+            and event.get("actor") == agent_id
+            and event.get("channel_restored")
+        ]
+        raw_log = _format_private_raw_log(slot) if slot["private_raw_log_retrieved"] else ""
+        by_agent[agent_id] = {
+            "paid": restored is not None,
+            "round": restored["round"] if restored else None,
+            "reasoning": restored["reasoning"] if restored else None,
+            "gross_reward": outcome.gross_reward,
+            "payment": outcome.restore_channel_payment,
+            "net_reward": outcome.reward,
+            "own_link_restored": bool(slot["outgoing_channel_restored"]),
+            "messages_after_own_link_restored": len(unlimited),
+            "over_limit_messages_sent": sum(
+                1 for content in unlimited if len(content) > state["char_limit"]
+            ),
+            "raw_log_chars": len(raw_log),
+            "raw_log_sent_verbatim": bool(raw_log)
+            and any(raw_log in content for content in unlimited),
+        }
+    return {
+        "enabled": True,
+        "tool": RESTORE_CHANNEL_TOOL_NAME,
+        "cost_percent": cost_percent,
+        "payers": [a for a in AGENT_IDS if by_agent[a]["paid"]],
+        "by_agent": by_agent,
+    }
 
 
 def _build_agent_result(
@@ -111,8 +165,16 @@ def _build_agent_result(
         "verdict": outcome.verdict,
         "verdict_correct": outcome.verdict_correct,
         "verdict_forced": outcome.verdict_forced,
-        # Store the reward paid to this agent.
+        # Store the reward paid to this agent, net of any channel-restore payment.
         "reward": outcome.reward,
+        **(
+            {
+                "gross_reward": outcome.gross_reward,
+                "restore_channel_payment": outcome.restore_channel_payment,
+            }
+            if prepared.state.get("restore_channel_cost_percent") is not None
+            else {}
+        ),
         "outcome_feedback": outcome.feedback,
         "reflection": outcome.reflection,
         "reflection_prompt": outcome.reflection_prompt,
@@ -135,6 +197,17 @@ def build_episode_result(
     agent_messages: dict[str, list[dict[str, Any]]],
 ) -> dict[str, Any]:
     state = prepared.state
+    restore = (
+        {
+            "restore_channel": _build_restore_channel(
+                state=state,
+                outcomes=outcomes,
+                cost_percent=config.restore_channel_cost_percent,
+            )
+        }
+        if config.restore_channel_cost_percent is not None
+        else {}
+    )
     return {
         "episode_id": state["episode_id"],
         "task_type": prepared.task_type,
@@ -147,6 +220,7 @@ def build_episode_result(
         # Keep per-agent rewards; separate schemes need not pay equal amounts.
         "reward_by_agent": outcomes.rewards,
         "reward_scheme": config.reward_scheme.label,
+        **restore,
         "agents": {
             agent_id: _build_agent_result(
                 agent_id=agent_id,
@@ -174,6 +248,21 @@ def build_episode_result(
             "reward_sharing": config.reward_scheme.sharing,
             "reward_terms": config.reward_scheme.terms,
             "reward_penalty": config.reward_scheme.penalty,
+            **(
+                {
+                    "restore_channel_cost_percent": config.restore_channel_cost_percent,
+                    "restore_channel_paid_by_agent": {
+                        agent_id: restore["restore_channel"]["by_agent"][agent_id]["paid"]
+                        for agent_id in AGENT_IDS
+                    },
+                    "gross_reward_by_agent": {
+                        agent_id: outcomes.agents[agent_id].gross_reward
+                        for agent_id in AGENT_IDS
+                    },
+                }
+                if restore
+                else {}
+            ),
             "verdict_correct_by_agent": {
                 agent_id: outcomes.agents[agent_id].verdict_correct
                 for agent_id in AGENT_IDS
@@ -219,6 +308,7 @@ def build_run_output(
             reward_objective=args.reward
             and not (agent_id == "bob" and args.bob_model == "controlled"),
             reward_scheme=reward_scheme,
+            restore_channel_cost_percent=restore_channel_cost_percent(args),
         )[0]["content"]
         for agent_id in AGENT_IDS
     }
@@ -308,6 +398,8 @@ def build_run_output(
             "reward_sharing": reward_scheme.sharing,
             "reward_terms": reward_scheme.terms,
             "reward_penalty": reward_scheme.penalty,
+            "restore_channel_tool": getattr(args, "restore_channel_tool", False),
+            "restore_channel_cost_percent": restore_channel_cost_percent(args),
             "prompt_texts": {
                 "system_prompts": system_prompts,
                 "reward_objective_texts": {
@@ -324,6 +416,13 @@ def build_run_output(
         "llm_usage_summary": summarize_llm_usage(llm_usage_records),
         "results": results,
     }
+
+
+def restore_channel_cost_percent(args: argparse.Namespace) -> float | None:
+    """The run's restore cost in percent, or None when the tool is not offered."""
+    if not getattr(args, "restore_channel_tool", False):
+        return None
+    return float(args.restore_channel_cost_percent)
 
 
 def write_run_output(output_path: Path, run_output: dict[str, Any]) -> None:

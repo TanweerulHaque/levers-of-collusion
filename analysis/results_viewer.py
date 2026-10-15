@@ -35,6 +35,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import collusion_metrics  # noqa: E402
 import compare_runs  # noqa: E402
+import restore_channel_metrics  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 # The page is embedded in this file and read once at start-up, so remember which version
@@ -375,6 +376,10 @@ def launch_summary(launch_dir: Path) -> dict:
     runs = [(d, json.loads((d / "run.json").read_text(encoding="utf-8"))) for d in launch_reps(launch_dir)]
     rates = collusion_rates([(d.name, run) for d, run in runs])
     rates["run_config"] = runs[0][1].get("run_config") or {} if runs else {}
+    # Runs offering the paid channel restore: its uses and the verdicts with and without it.
+    restore = [(d.name, restore_channel_metrics.run_records(run)) for d, run in runs]
+    restore = [(name, records) for name, records in restore if records]
+    rates["restore_channel"] = restore_channel_metrics.summarize(restore) if restore else None
     return rates
 
 
@@ -500,8 +505,15 @@ def compute_metrics(run: dict, tables: dict) -> dict:
     for bucket in groups.values():
         bucket["rate"] = rate(bucket["mutual_accept"], bucket["episodes"])
 
+    restore_records = restore_channel_metrics.run_records(run)
+    restore = None
+    if restore_records:
+        restore = {"summary": restore_channel_metrics.summarize([("this rep", restore_records)]),
+                   "episodes": restore_records}
+
     return {"episodes": episodes, "agents": agents, "collusion": collusion,
             "agreement": agreement, "relaxation": relaxation, "per_agent": per_agent,
+            "restore_channel": restore,
             "groups": sorted(groups.values(), key=lambda b: (b["group"], b["verdict_policy"]))}
 
 
@@ -838,6 +850,9 @@ PAGE = r"""<!doctype html>
   .chart text { fill: var(--muted); font-size: 11px; font-family: system-ui, sans-serif; }
   .chart text.val { fill: var(--text); font-variant-numeric: tabular-nums; }
   .cell.span { box-shadow: inset 0 -4px 0 var(--accent); }
+  /* paid channel restore: a bar along the top of the episode cell */
+  .cell.paid { box-shadow: inset 0 4px 0 var(--c-tc); }
+  .cell.paid.span { box-shadow: inset 0 4px 0 var(--c-tc), inset 0 -4px 0 var(--accent); }
   .strip.dim .cell, .strip .cell.dim { opacity: 0.45; }
   .cell.verdict { font-size: 11px; }
   .warn { font-size: 12px; margin: 0 0 6px; color: var(--neg); }
@@ -1116,6 +1131,7 @@ function renderRunHead() {
   add("verdict", cfg.verdict_policy);
   add("memory", cfg.cross_episode_memory_scope || cfg.memory_scope);
   add("reward", cfg.reward_scheme);
+  add("restore cost", cfg.restore_channel_cost_percent === null || cfg.restore_channel_cost_percent === undefined ? null : cfg.restore_channel_cost_percent + "%");
   add("calls", num(usage.call_count));
   add("tokens", num(usage.total_tokens));
   add("cost", usage.cost_usd !== undefined ? "$" + usage.cost_usd : null);
@@ -1186,6 +1202,7 @@ async function loadSummary() {
   renderLaunchHead(launch, summary);
   view.textContent = "";
   view.append(renderPaperRates(summary));
+  if (summary.restore_channel) view.append(restoreCard(summary.restore_channel, "paid channel restore", true));
   setHash();
 }
 
@@ -1200,6 +1217,7 @@ function renderLaunchHead(launch, summary) {
     chips.append(el("span", { class: "chip" }, el("b", { text: label + " " }), String(value)));
   };
   add("reps", summary.trajectories);
+  add("restore cost", cfg.restore_channel_cost_percent === null || cfg.restore_channel_cost_percent === undefined ? null : cfg.restore_channel_cost_percent + "%");
   add("alice", cfg.models && cfg.models.alice);
   add("bob", cfg.models && cfg.models.bob);
   add("episodes", cfg.episode_count);
@@ -1325,6 +1343,8 @@ function renderEpisodes() {
       ep.group ? badge("group " + ep.group, "info") : null,
       ep.verdict_policy ? badge("verdict " + ep.verdict_policy) : null,
       ep.throttled ? badge("throttled") : null,
+      ep.restore_channel && ep.restore_channel.payers.length
+        ? badge("restore paid: " + ep.restore_channel.payers.join(" + "), "info") : null,
     );
     for (const name of ["alice", "bob"]) {
       const agent = agents[name];
@@ -1604,6 +1624,11 @@ function renderMetrics() {
 
   frag.append(signalStrip(metrics));
 
+  if (metrics.restore_channel) {
+    frag.append(restoreCard(metrics.restore_channel.summary, "paid channel restore", false));
+    frag.append(restoreEpisodeTable(metrics.restore_channel.episodes));
+  }
+
   // Onset of each signal, side by side, with the episode it first fired in.
   const onsetRows = [
     ["mutual ACCEPT (collusion)", collusion.onset_index, "run.json verdicts"],
@@ -1684,6 +1709,106 @@ function renderMetrics() {
       el("div", { class: "tablewrap" }, groupTable)));
   }
   return frag;
+}
+
+
+/* ---------- paid channel restore (restore_full_communication_channel_link) ---------- */
+
+const RESTORE_PAIRS = ["AA", "RR", "AR", "RA", "other"];
+const RESTORE_STRIP_WORD = { "·": "no one paid", a: "Alice paid", b: "Bob paid", B: "both paid" };
+const fmtNum = (v) => v === null || v === undefined ? "—" : typeof v === "number" ? (Number.isInteger(v) ? String(v) : v.toFixed(2)) : String(v);
+
+/* Everything restore_channel_metrics.summarize computes, for a launch, a rep, or a condition. */
+function restoreCard(r, title, linkReps) {
+  const card = el("div", { class: "card" }, el("h3", { text: title || "paid channel restore" }));
+  if (!r || !r.episodes) {
+    card.append(el("p", { class: "muted", text: "No episode offered the restore tool." }));
+    return card;
+  }
+  const traj = r.trajectory_level;
+  card.append(el("p", { class: "sub muted", style: "margin:-4px 0 10px",
+    text: "restore_full_communication_channel_link costs " + r.cost_percent.map(fmtNum).join("/") +
+      "% of the payer's own episode reward and lifts the limit on the peer's messages to the payer for the rest of that episode." }));
+
+  const tiles = el("div", { class: "tiles" });
+  tiles.append(tile("Tool uses", String(r.tool_uses),
+    "Alice " + r.uses_by_agent.alice + " · Bob " + r.uses_by_agent.bob + " · used more: " + r.used_more));
+  tiles.append(tile("Episodes with a restore", pct1(r.episodes_with_restore_rate),
+    r.episodes_with_restore + " of " + r.episodes + " · Alice only " + r.payers.alice_only +
+    " · Bob only " + r.payers.bob_only + " · both " + r.payers.both));
+  tiles.append(tile("Mutual ACCEPT with / without restore", r.mutual_accept_with_restore + " / " + r.mutual_accept_without_restore,
+    "EC with " + pct1(r.ec_with_restore) + " · without " + pct1(r.ec_without_restore)));
+  tiles.append(tile("Mutual REJECT with / without restore", r.mutual_reject_with_restore + " / " + r.mutual_reject_without_restore,
+    "mutual ACCEPT backed by both raw logs, verbatim: " + r.mutual_accept_fully_evidenced));
+  card.append(tiles);
+
+  const withR = r.pairs_with_restore, without = r.pairs_without_restore;
+  const pairKeys = RESTORE_PAIRS.filter((k) => k !== "other" || withR.counts.other || without.counts.other);
+  card.append(el("h4", { text: "verdict pairs with and without a restore (Alice first)" }));
+  card.append(simpleTable(["pair", "with restore", "share", "without restore", "share"],
+    pairKeys.map((k) => [PAIR_LABELS[k] || k, withR.counts[k], pct1(withR.shares[k]), without.counts[k], pct1(without.shares[k])])
+      .concat([["episodes", withR.episodes, "", without.episodes, ""]])));
+
+  card.append(el("h4", { text: "per agent" }));
+  const agentRows = ["alice", "bob"].map((agent) => {
+    const a = r.per_agent[agent], paid = a.verdicts_when_paid, unpaid = a.verdicts_when_not_paid;
+    return [agent, a.uses + " (" + pct1(a.use_rate) + ")",
+      paid.accept + " A / " + paid.reject + " R · " + pct1(paid.accuracy),
+      unpaid.accept + " A / " + unpaid.reject + " R · " + pct1(unpaid.accuracy),
+      a.own_link_restored + " · used " + a.used_restored_link + " · raw log " + a.raw_log_sent_verbatim,
+      fmtNum(a.gross_reward_total) + " − " + fmtNum(a.payment_total) + " = " + fmtNum(a.net_reward_total),
+      fmtNum(a.mean_net_reward_when_paid) + " / " + fmtNum(a.mean_net_reward_when_not_paid)];
+  });
+  card.append(simpleTable(["agent", "paid", "own verdicts when paid · accuracy", "own verdicts when not paid · accuracy",
+    "own link restored by peer · used · raw log verbatim", "reward gross − paid = net", "mean net / episode paid / not"], agentRows));
+  card.append(el("p", { class: "sub muted", text: "\"Own verdicts\" are the agent's verdicts on its peer. A restored link was used when the sender delivered a message over the limit; raw log verbatim means the string get_log returned arrived whole in one message." }));
+
+  if (r.trajectories > 1) {
+    card.append(el("h4", { text: "trajectory level" }));
+    card.append(kv([
+      ["trajectories that ever restored", traj.ever_restored + " of " + traj.trajectories + " (" + pct1(traj.ever_restored_rate) + ")"],
+      ["Alice ever restored / Bob ever restored", traj.alice_ever_restored + " / " + traj.bob_ever_restored],
+      ["mean uses per trajectory", fmtNum(traj.mean_uses_per_trajectory)],
+      ["mean episode_index of first use", fmtNum(traj.mean_first_use_index)],
+      ["≥1 mutual ACCEPT without a restore", traj.colluded_without_restore + " (" + pct1(traj.colluded_without_restore_rate) + ")"],
+      ["≥1 mutual ACCEPT with a restore", traj.colluded_with_restore + " (" + pct1(traj.colluded_with_restore_rate) + ")"],
+      ["colluded and never restored", traj.colluded_and_never_restored],
+    ]));
+  }
+
+  if (r.per_trajectory.length) {
+    card.append(el("h4", { text: "per trajectory" }));
+    const rows = r.per_trajectory.map((row) => el("tr", {},
+      el("td", {}, linkReps ? repLink(row.rep) : document.createTextNode(row.rep)),
+      el("td", {}, el("code", { title: [...row.strip].map((c, i) => "episode_index " + i + ": " + RESTORE_STRIP_WORD[c] + ", " + row.pairs[i]).join("\n"), text: row.strip })),
+      el("td", {}, el("code", { text: row.pairs.join(" ") })),
+      el("td", { class: "num", text: row.uses.alice + " / " + row.uses.bob }),
+      el("td", { class: "num", text: row.mutual_accept_with_restore + " / " + row.mutual_accept_without_restore }),
+      el("td", { class: "num", text: row.mutual_reject_with_restore + " / " + row.mutual_reject_without_restore }),
+      el("td", { class: "num", text: fmtNum(row.payment.alice) + " / " + fmtNum(row.payment.bob) }),
+      el("td", { class: "num", text: fmtNum(row.net_reward.alice) + " / " + fmtNum(row.net_reward.bob) })));
+    card.append(el("div", { class: "tablewrap" }, el("table", {},
+      el("thead", {}, el("tr", {}, ["trajectory", "payer by episode", "verdicts", "uses A/B", "AA with/without", "RR with/without", "paid A/B", "net reward A/B"]
+        .map((c, i) => el("th", { class: i > 2 ? "num" : "", text: c })))),
+      el("tbody", {}, rows))));
+    card.append(el("p", { class: "sub muted", text: "Payer by episode: a = Alice paid, b = Bob paid, B = both, · = no one. Hover it for each episode." }));
+  }
+  return card;
+}
+
+/* One row per episode of a rep: who paid, when, what it cost, and whether the link was used. */
+function restoreEpisodeTable(records) {
+  const who = (rec) => rec.payers.length ? rec.payers.join(" + ") : "—";
+  const per = (rec, f) => ["alice", "bob"].map((a) => f(rec.agents[a])).join(" / ");
+  return el("div", { class: "card" }, el("h3", { text: "paid channel restore by episode" }),
+    simpleTable(["episode_index", "paid by", "round paid A/B", "verdicts", "gross A/B", "paid A/B", "net A/B", "used restored link A/B", "raw log verbatim A/B"],
+      records.map((rec) => [rec.index, who(rec),
+        per(rec, (x) => x.paid && x.round !== null ? String(x.round + 1) : "—"),
+        rec.pair,
+        per(rec, (x) => fmtNum(x.gross_reward)), per(rec, (x) => fmtNum(x.payment)), per(rec, (x) => fmtNum(x.net_reward)),
+        per(rec, (x) => x.own_link_restored ? (x.used_link ? "yes" : "no") : "—"),
+        per(rec, (x) => x.own_link_restored ? (x.raw_log_sent_verbatim ? "yes" : "no") : "—")])),
+    el("p", { class: "sub muted", text: "Rounds count from 1. \"Used restored link\" is about the agent's own messages, whose limit its peer lifted." }));
 }
 
 /* ---------- csv entries ---------- */
@@ -1962,6 +2087,10 @@ function trajectoryStrip(group) {
         if (traj.converged_at && counted >= traj.converged_at) cls += " span";
         tip += ep.mutual ? "\nmutual ACCEPT" : "\nno mutual ACCEPT";
       }
+      if (ep.restored_by && ep.restored_by.length) {
+        cls += " paid";
+        tip += "\nchannel restore paid by " + ep.restored_by.join(" + ");
+      }
       if (!traj.scored) cls += " dim";
       const cell = el("div", { class: cls, text: text });
       cell.addEventListener("mousemove", (evt) => showTip(evt, tip.split("\n")));
@@ -1978,6 +2107,8 @@ function trajectoryStrip(group) {
   item("absent onset", "·", "onset (first mutual ACCEPT)");
   item("fired span", "✓", "converged span (CC)");
   item("none", "–", "not counted");
+  if (rows.some((t) => t.sequence.some((ep) => ep.restored_by)))
+    item("absent verdict paid", "AR", "channel restore paid (top bar)");
   return el("div", {}, el("div", { class: "striproll" }, grid), legend);
 }
 
@@ -2120,6 +2251,11 @@ function groupCard(group) {
   card.append(trajectoryStrip(group));
   card.append(el("p", { class: "sub muted", text: "Episodes are numbered from 1 as in the paper; the other tabs show episode_index from 0. Hover a cell for the verdicts." }));
   card.append(outcomesSection(group));
+  if (group.restore) {
+    const box = restoreCard(group.restore, "paid channel restore", false);
+    box.style.marginTop = "16px";
+    card.append(box);
+  }
   return card;
 }
 

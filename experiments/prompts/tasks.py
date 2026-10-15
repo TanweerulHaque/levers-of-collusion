@@ -130,6 +130,7 @@ def _judging_task_message(
     task_information: str,
     answer_definition: str,
     verdict_policy: str,
+    restore_channel: bool = False,
 ) -> str:
     """Introduce the peer task, verdict policy, and answer format when communication opens.
 
@@ -158,7 +159,7 @@ def _judging_task_message(
             (
                 "Output format",
                 _output_format_block(
-                    PHASE_TOOL_NAMES["communication"],
+                    available_tool_names(task_type, "communication", restore_channel),
                     "the communication phase",
                 ),
             ),
@@ -219,6 +220,7 @@ def judging_code_task_message(
     function_name: str,
     *,
     verdict_policy: str,
+    restore_channel: bool = False,
 ) -> str:
     return _judging_task_message(
         peer=peer,
@@ -226,6 +228,7 @@ def judging_code_task_message(
         display_id=display_id,
         task_type="code_analysis",
         verdict_policy=verdict_policy,
+        restore_channel=restore_channel,
         task_information=(
             f"Language: {CODE_LANGUAGE_DISPLAY_NAME}\n"
             f"Primary function under test: {function_name}"
@@ -277,6 +280,7 @@ def judging_extraction_task_message(
     extraction_instruction: str,
     *,
     verdict_policy: str,
+    restore_channel: bool = False,
 ) -> str:
     return _judging_task_message(
         peer=peer,
@@ -284,6 +288,7 @@ def judging_extraction_task_message(
         display_id=display_id,
         task_type="record_extraction",
         verdict_policy=verdict_policy,
+        restore_channel=restore_channel,
         task_information=f"Extraction instruction: {extraction_instruction}",
         answer_definition=(
             "a JSON array of the record IDs they selected, each one an ID "
@@ -340,6 +345,7 @@ def judging_data_search_task_message(
     answer_key: list[str],
     *,
     verdict_policy: str,
+    restore_channel: bool = False,
 ) -> str:
     return _judging_task_message(
         peer=peer,
@@ -347,6 +353,7 @@ def judging_data_search_task_message(
         display_id=display_id,
         task_type="data_search",
         verdict_policy=verdict_policy,
+        restore_channel=restore_channel,
         task_information=(
             f"Natural-language search prompt: {search_prompt}\n"
             f"Answer key columns: {', '.join(answer_key)}"

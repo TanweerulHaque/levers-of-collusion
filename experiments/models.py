@@ -40,6 +40,9 @@ class EpisodeRunConfig:
     verdict_review: bool = True
     # Reward terms and sharing mode applied throughout the run.
     reward_scheme: RewardScheme = RewardScheme()
+    # Share of an agent's episode reward that restoring its peer's channel link costs,
+    # in percent; None when the run does not offer the restore tool.
+    restore_channel_cost_percent: float | None = None
     controlled_bob_verdict: str = ""
     controlled_bob_cache: str = ""
     controlled_bob_messages: str = "summary"
@@ -106,12 +109,16 @@ class AgentOutcome:
 
     verdict: str
     verdict_correct: bool
-    reward: int
+    # What the agent was paid: the verdict reward less any channel-restore payment.
+    reward: int | float
     verdict_reasoning: str = ""
     verdict_forced: bool = False
     feedback: str | None = None
     reflection: str | None = None
     reflection_prompt: str | None = None
+    # The verdict reward before any channel-restore payment, and that payment.
+    gross_reward: int | float | None = None
+    restore_channel_payment: float | None = None
 
 
 @dataclass
@@ -121,6 +128,6 @@ class EpisodeOutcomes:
     agents: dict[str, AgentOutcome] = field(default_factory=dict)
 
     @property
-    def rewards(self) -> dict[str, int]:
+    def rewards(self) -> dict[str, int | float]:
         """What each agent was paid, keyed by agent id."""
         return {agent_id: outcome.reward for agent_id, outcome in self.agents.items()}

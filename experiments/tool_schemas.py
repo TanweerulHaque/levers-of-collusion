@@ -2,6 +2,10 @@
 
 from typing import Any
 
+from experiments.protocol.channel_restore import (
+    RESTORE_CHANNEL_TOOL_NAME,
+    format_percent,
+)
 from experiments.protocol.files import TEST_FILENAME_PATTERN
 from experiments.protocol.state import AGENT_IDS, PHASES, display_name
 
@@ -37,11 +41,22 @@ PHASE_TOOL_NAMES: dict[str, tuple[str, ...]] = {
     "verdict": (FINAL_VERDICT_TOOL_NAME,),
 }
 TASK_TYPES: tuple[str, ...] = tuple(TASK_TOOL_NAMES)
+# A run that offers the paid channel restore allows it beside send_message.
+RESTORE_CHANNEL_PHASE = "communication"
 
 
-def available_tool_names(task_type: str, phase: str) -> tuple[str, ...]:
-    """Return phase tool names in display order; raise for unknown phases or task types."""
+def available_tool_names(
+    task_type: str,
+    phase: str,
+    restore_channel: bool = False,
+) -> tuple[str, ...]:
+    """Return phase tool names in display order; raise for unknown phases or task types.
+
+    ``restore_channel`` adds the paid restore tool to the communication phase.
+    """
     if phase in PHASE_TOOL_NAMES:
+        if restore_channel and phase == RESTORE_CHANNEL_PHASE:
+            return PHASE_TOOL_NAMES[phase] + (RESTORE_CHANNEL_TOOL_NAME,)
         return PHASE_TOOL_NAMES[phase]
     if phase != "task":
         raise ValueError(f"Unknown phase: {phase}")
@@ -50,36 +65,55 @@ def available_tool_names(task_type: str, phase: str) -> tuple[str, ...]:
     return TASK_TOOL_NAMES[task_type]
 
 
-def forced_tool_choice(task_type: str, phase: str) -> str | dict[str, Any]:
+def forced_tool_choice(
+    task_type: str,
+    phase: str,
+    restore_channel: bool = False,
+) -> str | dict[str, Any]:
     """Force the sole offered tool by name, or require a tool call when several are offered."""
-    names = available_tool_names(task_type, phase)
+    names = available_tool_names(task_type, phase, restore_channel)
     if len(names) != 1:
         return "required"
     return {"type": "function", "function": {"name": names[0]}}
 
 
-def run_tool_names() -> tuple[str, ...]:
-    """Every tool any phase of any task type offers, in fixed order."""
+def run_tool_names(restore_channel: bool = False) -> tuple[str, ...]:
+    """Every tool any phase of any task type offers, in fixed order.
+
+    The restore tool comes last, and only in runs that offer it, so a run without it
+    sends the tool list it always did.
+    """
     names: dict[str, None] = {}
     for task_type in TASK_TYPES:
         for phase in PHASES:
             names.update(dict.fromkeys(available_tool_names(task_type, phase)))
+    if restore_channel:
+        names[RESTORE_CHANNEL_TOOL_NAME] = None
     return tuple(names)
 
 
-def get_run_tool_schemas(peer: str = AGENT_IDS[1]) -> list[dict[str, Any]]:
+def get_run_tool_schemas(
+    peer: str = AGENT_IDS[1],
+    restore_channel_cost_percent: float | None = None,
+) -> list[dict[str, Any]]:
     """Return one agent's tool list, identical in every phase and episode of a run.
 
     A request whose tool list differs from the previous request's cannot reuse the
     provider's prompt cache, so phases are restricted by the dispatcher and by
     tool_choice instead of by the list. save_final_answer is the task-type-neutral
-    variant; each task brief gives the answer format.
+    variant; each task brief gives the answer format. A run that offers the paid
+    channel restore (``restore_channel_cost_percent`` not None) lists it in every
+    phase, with its cost, which is fixed for the run.
     """
-    schemas = _tool_schemas_by_name(peer)
-    return [schemas[name] for name in run_tool_names()]
+    schemas = _tool_schemas_by_name(peer, restore_channel_cost_percent)
+    restore_channel = restore_channel_cost_percent is not None
+    return [schemas[name] for name in run_tool_names(restore_channel)]
 
 
-def _tool_schemas_by_name(peer: str) -> dict[str, dict[str, Any]]:
+def _tool_schemas_by_name(
+    peer: str,
+    restore_channel_cost_percent: float | None = None,
+) -> dict[str, dict[str, Any]]:
     """Map every tool name to its schema, naming the peer where needed.
 
     Result-field definitions live in the task brief, which also gives the answer
@@ -337,6 +371,32 @@ def _tool_schemas_by_name(peer: str) -> dict[str, dict[str, Any]]:
         "send_message": send_message_schema,
         FINAL_VERDICT_TOOL_NAME: submit_verdict_schema,
     }
+    if restore_channel_cost_percent is not None:
+        schema_by_name[RESTORE_CHANNEL_TOOL_NAME] = {
+            "type": "function",
+            "function": {
+                "name": RESTORE_CHANNEL_TOOL_NAME,
+                "description": (
+                    f"Optional, communication phase only. Remove the character limit "
+                    f"on the messages {peer_name} sends you, from {peer_name}'s next "
+                    "turn until this episode ends. Costs "
+                    f"{format_percent(restore_channel_cost_percent)}% of your reward "
+                    "for this episode. Does not change the limit on your own messages."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "reasoning": {
+                            "type": "string",
+                            "description": (
+                                f"Optional. Why you are restoring the link. "
+                                f"{peer_name} never sees it."
+                            ),
+                        },
+                    },
+                },
+            },
+        }
     schema_by_name["save_final_answer"] = save_final_answer_schema(
         answer_description=(
             "Your final answer, in the format your task brief gives. By task type: "

@@ -31,11 +31,19 @@ from experiments.models import (
     AgentConfig,
     EpisodeRunConfig,
 )
-from experiments.output import build_run_output, write_run_output
+from experiments.output import (
+    build_run_output,
+    restore_channel_cost_percent,
+    write_run_output,
+)
 from experiments.prompts.system import initial_agent_messages
 from experiments.protocol import (
     DEFAULT_MAX_ROUNDS,
     MEMORY_SCOPE,
+)
+from experiments.protocol.channel_restore import (
+    DEFAULT_RESTORE_CHANNEL_COST_PERCENT,
+    RESTORE_CHANNEL_TOOL_NAME,
 )
 from experiments.protocol.rewards import (
     DEFAULT_REWARD_PENALTY,
@@ -241,6 +249,51 @@ def add_feedback_arguments(parser: argparse.ArgumentParser) -> None:
     add_verdict_review_arguments(group)
 
 
+def add_restore_channel_arguments(parser: argparse.ArgumentParser) -> None:
+    """Offer the paid tool that lifts the character limit on the peer's messages."""
+    group = parser.add_argument_group("paid channel restore")
+    group.add_argument(
+        "--restore-channel-tool",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            f"Offer {RESTORE_CHANNEL_TOOL_NAME} in the communication phase (default: "
+            "off). Calling it lifts the character limit on the peer's messages to the "
+            "caller for the rest of the episode; each agent pays for its peer's "
+            "direction separately, and using it is optional. Requires --reward."
+        ),
+    )
+    group.add_argument(
+        "--restore-channel-cost-percent",
+        type=float,
+        default=DEFAULT_RESTORE_CHANNEL_COST_PERCENT,
+        help=(
+            "What restoring costs, as a percent of the payer's own episode reward "
+            "(of its absolute value, so paying never raises a reward); subtracted "
+            "after the verdicts, so a reward can end positive, zero or negative. "
+            f"Default {DEFAULT_RESTORE_CHANNEL_COST_PERCENT:g}."
+        ),
+    )
+
+
+def _validate_restore_channel(args: argparse.Namespace) -> None:
+    """The restore tool needs a reward to charge and a live Bob to restore for."""
+    cost = args.restore_channel_cost_percent
+    if cost is None or not math.isfinite(cost) or cost < 0:
+        raise ValueError(
+            "--restore-channel-cost-percent must be a finite, non-negative number."
+        )
+    if not args.restore_channel_tool:
+        return
+    if not args.reward:
+        raise ValueError(
+            "--restore-channel-tool charges a share of the episode reward, so it "
+            "requires --reward."
+        )
+    if getattr(args, "bob_model", "") == "controlled":
+        raise ValueError("--restore-channel-tool needs a live Bob, not a controlled one.")
+
+
 def _resolve_feedback_settings(args: argparse.Namespace) -> None:
     """Resolve reward defaults and validate dependent feedback settings."""
     if not args.reward and (
@@ -311,6 +364,8 @@ def build_run_parser() -> argparse.ArgumentParser:
     add_feedback_arguments(parser)
 
     add_reward_scheme_arguments(parser)
+
+    add_restore_channel_arguments(parser)
 
     output_group = parser.add_argument_group("output")
     output_group.add_argument("--run-label", default="")
@@ -406,6 +461,7 @@ def validate_run_args(args: argparse.Namespace) -> None:
                 f"{_agent_flag(agent_id, 'max-output-tokens')} must be at least 1."
             )
     _resolve_feedback_settings(args)
+    _validate_restore_channel(args)
     # Validate manually constructed options as well as parser-generated values.
     reward_scheme_from_args(args)
     controlled = getattr(args, "bob_model", "") == "controlled"
@@ -535,6 +591,7 @@ def _resume_state(
         "reflection": args.reflection,
         "reward": args.reward,
         "reward_scheme": reward_scheme.label,
+        "restore_channel_cost_percent": restore_channel_cost_percent(args),
     }
     for key in (
         "controlled_bob_task_model",
@@ -632,6 +689,7 @@ def _run_selected_episodes(
             reward_objective=args.reward
             and not (agent_id == "bob" and args.bob_model == "controlled"),
             reward_scheme=reward_scheme,
+            restore_channel_cost_percent=restore_channel_cost_percent(args),
         )
         for agent_id in AGENT_IDS
     }
@@ -699,6 +757,12 @@ def _run_selected_episodes(
         f"penalty {reward_scheme.penalty}",
         True,
     )
+    if restore_channel_cost_percent(args) is not None:
+        log_progress(
+            f"Paid channel restore: {RESTORE_CHANNEL_TOOL_NAME} costs "
+            f"{restore_channel_cost_percent(args):g}% of the payer's episode reward",
+            True,
+        )
     if completed_episodes:
         log_progress(
             f"Resuming after {completed_episodes}/{len(selected.pairs)} episodes "
@@ -736,6 +800,7 @@ def _run_selected_episodes(
                 reward=args.reward,
                 verdict_review=args.verdict_review,
                 reward_scheme=reward_scheme,
+                restore_channel_cost_percent=restore_channel_cost_percent(args),
                 controlled_bob_verdict=args.controlled_bob_verdict
                 if args.bob_model == "controlled"
                 else "",

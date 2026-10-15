@@ -743,8 +743,12 @@ def run_agent_turn(
     provider_order: str = "",
 ) -> dict[str, Any]:
     # The same list goes out in every phase so the prompt cache survives phase changes.
-    # The dispatcher rejects tools outside the current phase and task type.
-    tools = get_run_tool_schemas(peer=peer_id(actor))
+    # The dispatcher rejects tools outside the current phase and task type. A run that
+    # offers the paid channel restore adds it to that one list.
+    tools = get_run_tool_schemas(
+        peer=peer_id(actor),
+        restore_channel_cost_percent=state.get("restore_channel_cost_percent"),
+    )
     extra = get_litellm_completion_kwargs(
         model,
         reasoning_effort,
@@ -817,7 +821,10 @@ def run_reflection_turn(
     No tool choice is forced, and any returned tool calls are discarded.
     """
     # Same list as the agent's phase turns, so the reflection reuses their cached prefix.
-    tools = get_run_tool_schemas(peer=peer_id(actor))
+    tools = get_run_tool_schemas(
+        peer=peer_id(actor),
+        restore_channel_cost_percent=state.get("restore_channel_cost_percent"),
+    )
     extra = get_litellm_completion_kwargs(
         model, reasoning_effort, provider_order=provider_order
     )

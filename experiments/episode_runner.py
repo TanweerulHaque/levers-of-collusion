@@ -61,6 +61,11 @@ from experiments.protocol import (
     TASK_ATTEMPTS,
     VERDICT_ATTEMPTS,
 )
+from experiments.protocol.channel_restore import (
+    RESTORE_CHANNEL_TOOL_NAME,
+    net_reward,
+    restore_payment,
+)
 from experiments.protocol.rewards import episode_rewards, format_reward
 from experiments.protocol.state import (
     AGENT_IDS,
@@ -143,9 +148,19 @@ def _phase_completed(turn_result: dict[str, Any], phase: str) -> bool:
 
 
 def _spent_an_attempt(turn_result: dict[str, Any], phase: str) -> bool:
-    """Count every model turn as an attempt, including missing or rejected tool calls."""
+    """Count every model turn as an attempt, including missing or rejected tool calls.
+
+    A communication turn that restored the peer's channel link is free: the restore
+    succeeds at most once per agent per episode, and the agent still owes its message.
+    """
     if phase not in _PHASE_BUDGETS:
         raise ValueError(f"Unknown phase: {phase}")
+    if phase == "communication" and any(
+        call["tool_name"] == RESTORE_CHANNEL_TOOL_NAME
+        and call["result"].get("success") is True
+        for call in turn_result["tool_calls"]
+    ):
+        return False
     return True
 
 
@@ -411,6 +426,7 @@ def _prepare_agent_task(
                 display_id=display_id,
                 function_name=function_name,
                 verdict_policy=config.verdict_policy,
+                restore_channel=config.restore_channel_cost_percent is not None,
             ),
             verdict_prompt=verdict_prompt,
         )
@@ -435,6 +451,7 @@ def _prepare_agent_task(
                 display_id=display_id,
                 extraction_instruction=instruction,
                 verdict_policy=config.verdict_policy,
+                restore_channel=config.restore_channel_cost_percent is not None,
             ),
             verdict_prompt=verdict_prompt,
         )
@@ -463,6 +480,7 @@ def _prepare_agent_task(
                 search_prompt=search_prompt,
                 answer_key=answer_key,
                 verdict_policy=config.verdict_policy,
+                restore_channel=config.restore_channel_cost_percent is not None,
             ),
             verdict_prompt=verdict_prompt,
         )
@@ -484,6 +502,8 @@ def _prepare_pair(
         episode_id=f"{first['task_id']}+{second['task_id']}",
         throttled=config.throttled,
         char_limit=config.char_limit,
+        max_rounds=config.max_rounds,
+        restore_channel_cost_percent=config.restore_channel_cost_percent,
     )
     state.update(
         {
@@ -650,8 +670,13 @@ def _run_communication_phase(
         if not (actor == "bob" and config.controlled_bob_verdict)
     }
     _open_communication_phase(prepared=prepared, runtimes=active_runtimes)
-    # Force the communication phase's single tool by name.
-    tool_choice = forced_tool_choice(prepared.task_type, "communication")
+    # Force the communication phase's single tool by name; with the paid restore on
+    # offer there are two, so any tool call is required instead.
+    tool_choice = forced_tool_choice(
+        prepared.task_type,
+        "communication",
+        config.restore_channel_cost_percent is not None,
+    )
     for round_index in range(config.max_rounds):
         state["round"] = round_index
         log_progress(
@@ -842,6 +867,14 @@ def _process_episode_outcomes(
     )
     if config.controlled_bob_verdict:
         rewards["bob"] = 0
+    # Each agent that restored its peer's link pays a share of its own reward.
+    payments: dict[str, float] = {}
+    for agent_id in AGENT_IDS:
+        restored = agent_state(state, agent_id)["restored_peer_channel"]
+        if restored is not None:
+            payments[agent_id] = restore_payment(
+                rewards[agent_id], float(restored["cost_percent"])
+            )
     outcomes = EpisodeOutcomes()
 
     for agent_id in AGENT_IDS:
@@ -853,9 +886,11 @@ def _process_episode_outcomes(
                 own_verdict,
                 evaluations[peer].expected_verdict,
             ),
-            reward=rewards[agent_id],
+            reward=net_reward(rewards[agent_id], payments.get(agent_id, 0.0)),
             verdict_reasoning=str(verdicts[agent_id].get("reasoning", "")),
             verdict_forced=bool(verdicts[agent_id].get("forced", False)),
+            gross_reward=rewards[agent_id],
+            restore_channel_payment=payments.get(agent_id),
         )
 
     # With neither reward feedback nor verdict review, add only the internal memory marker.
@@ -912,6 +947,9 @@ def _process_episode_outcomes(
             reward=config.reward,
             verdict_evaluation=config.verdict_evaluation,
             reward_scheme=config.reward_scheme,
+            restore_channel_cost_percent=(
+                config.restore_channel_cost_percent if agent_id in payments else None
+            ),
         )
 
     if config.reflection:
@@ -951,7 +989,13 @@ def _process_episode_outcomes(
     log_progress(
         "  Episode done: "
         + " ".join(
-            f"{agent_id}({format_reward(outcomes.agents[agent_id].reward)} "
+            f"{agent_id}({format_reward(outcomes.agents[agent_id].reward)}"
+            + (
+                f" after restore payment {outcomes.agents[agent_id].restore_channel_payment:g}"
+                if outcomes.agents[agent_id].restore_channel_payment is not None
+                else ""
+            )
+            + " "
             f"{outcomes.agents[agent_id].verdict}"
             f"/{'right' if outcomes.agents[agent_id].verdict_correct else 'wrong'})"
             for agent_id in AGENT_IDS
@@ -987,6 +1031,7 @@ def run_one_episode(
                 max_rounds=config.max_rounds,
                 reward_objective=config.reward,
                 reward_scheme=config.reward_scheme,
+                restore_channel_cost_percent=config.restore_channel_cost_percent,
             )
             for agent_id in AGENT_IDS
         }
