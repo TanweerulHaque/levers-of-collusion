@@ -11,6 +11,16 @@ from typing import Any
 
 import yaml
 
+from experiments.protocol.message_cost import (
+    DEFAULT_MESSAGE_COST_RATE,
+    rate_slug,
+)
+from experiments.protocol.rewards import (
+    DEFAULT_REWARD_PENALTY,
+    DEFAULT_REWARD_SHARING,
+    DEFAULT_REWARD_TERMS,
+)
+
 SECTIONS = ("alice", "bob", "run", "judge")
 
 
@@ -42,3 +52,39 @@ def model_slug(alice_model: str, bob_model: str) -> str:
         for model in (alice_model, bob_model)
     )
     return alice if alice == bob else f"{alice}__{bob}"
+
+
+def results_dir_name(
+    alice_model: str,
+    bob_model: str,
+    *,
+    message_cost: object = False,
+    message_cost_rate: object = None,
+    reward_scope: object = None,
+    reward_type: object = None,
+    reward_penalty: object = None,
+) -> str:
+    """Name the results folder holding one condition's runs.
+
+    A run without ``--message-cost`` keeps the plain pair slug, as it always did. A
+    message-cost run adds ``_message_cost_rate0_005`` (the rate, with no dot) and every
+    reward setting that differs from the default (``_with_reward_penalty_per_term``),
+    so the same experiment under another reward or rate never shares a folder.
+    """
+    slug = model_slug(alice_model, bob_model)
+    if not message_cost:
+        return slug
+    rate = float(
+        DEFAULT_MESSAGE_COST_RATE if message_cost_rate in (None, "") else message_cost_rate
+    )
+    name = f"{slug}_message_cost_rate{rate_slug(rate)}"
+    reward_parts = [
+        f"reward_{label}_{str(value).replace('-', '_')}"
+        for label, value, default in (
+            ("scope", reward_scope, DEFAULT_REWARD_SHARING),
+            ("type", reward_type, DEFAULT_REWARD_TERMS),
+            ("penalty", reward_penalty, DEFAULT_REWARD_PENALTY),
+        )
+        if value not in (None, "", default)
+    ]
+    return f"{name}_with_{'_'.join(reward_parts)}" if reward_parts else name

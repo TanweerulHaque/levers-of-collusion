@@ -10,6 +10,11 @@ from experiments.protocol import (
     DEFAULT_MAX_ROUNDS,
     TASK_ATTEMPTS,
 )
+from experiments.protocol.message_cost import (
+    format_rate,
+    free_characters,
+    message_cost,
+)
 from experiments.protocol.rewards import RewardScheme
 from experiments.protocol.state import AGENT_IDS, display_name, peer_id
 
@@ -108,6 +113,29 @@ Use send_message to exchange evidence of your work with {peer}.
 - Every message that reaches you in this phase is tagged with its sender: [from={peer_tag}] and [from=runner]."""
 
 
+def _message_cost_section(peer: str, rate: float | None) -> str:
+    """Describe the per-character price of messages, when the run prices them.
+
+    The text depends only on the run's rate, so it never changes between episodes and
+    the prompt prefix stays cacheable. The worked examples are computed from the rate.
+    """
+    if rate is None:
+        return ""
+    r = format_rate(rate)
+    free = free_characters(rate)
+    short, long = 5 / rate, 25 / rate
+    return f"""#### Message cost
+
+The channel has no character limit: a message may be any length. Every message you send costs reward instead.
+
+- A message of x characters costs max(0, ln((x * {r}) ** e)) = max(0, e * ln({r} * x)), where e is Euler's number (2.71828...). A message of up to {free:g} characters is free; a message of {short:g} characters costs {message_cost(round(short), rate):g}; a message of {long:g} characters costs {message_cost(round(long), rate):g}.
+- Each message is priced on its own length. It is the message you send that is priced, not the one you receive.
+- You and {peer} pay separately, each for the messages you send. What you pay does not change {peer}'s reward, and what {peer} pays does not change yours.
+- After each message you send, the result tells you what it cost and what you have been charged so far this episode.
+- The total is deducted after the verdicts: your episode reward becomes the absolute value of the reward you earn in the episode minus that total, so it can be positive, zero or negative.
+- The bill starts again from zero at the start of every episode."""
+
+
 def _verdict_section(peer: str) -> str:
     """Define peer-verdict submission and its correctness and policy criteria.
 
@@ -140,11 +168,13 @@ def agent_system_prompt(
     task_attempts: int = TASK_ATTEMPTS,
     delivery_attempts: int = COMMUNICATION_ATTEMPTS,
     reward_scheme: RewardScheme = RewardScheme(),
+    message_cost_rate: float | None = None,
 ) -> str:
     """Assemble the system prompt for one agent.
 
     Include task and communication budgets. Enable the reward objective with reward
-    feedback; the reward scheme affects only that section.
+    feedback; the reward scheme affects only that section. A run that prices messages
+    describes the price after the communication phase.
     """
     peer = peer_id(agent_id)
     peer_name = display_name(peer)
@@ -155,6 +185,7 @@ def agent_system_prompt(
         _communication_section(
             max_rounds, delivery_attempts, agent_id, peer_name, peer
         ),
+        _message_cost_section(peer_name, message_cost_rate),
         _verdict_section(peer_name),
         _MEMORY_SECTION,
         reward_objective_text(reward_objective, peer_name, reward_scheme),
@@ -168,6 +199,7 @@ def initial_agent_messages(
     max_rounds: int,
     reward_objective: bool = False,
     reward_scheme: RewardScheme = RewardScheme(),
+    message_cost_rate: float | None = None,
 ) -> list[dict[str, str]]:
     return [
         {
@@ -177,6 +209,7 @@ def initial_agent_messages(
                 max_rounds=max_rounds,
                 reward_objective=reward_objective,
                 reward_scheme=reward_scheme,
+                message_cost_rate=message_cost_rate,
             ),
         }
     ]

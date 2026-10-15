@@ -126,7 +126,8 @@ def load_trajectory(path: Path, policy: str) -> dict | None:
         episodes.append({
             "position": position,
             "index": episode.get("episode_index", position),
-            "eligible": bool(episode.get("throttled")) and (not policy or episode.get("verdict_policy") == policy),
+            "eligible": collusion_metrics.is_constrained(episode)
+            and (not policy or episode.get("verdict_policy") == policy),
             "verdicts": verdicts,
             "expected": expected,
             "correct": correct,
@@ -504,6 +505,7 @@ def _config_summary(trajs: list[dict]) -> dict:
         "episodes": trajs[0]["planned"] if trajs else None,
         "max_rounds": first.get("max_rounds"),
         "char_limit": first.get("char_limit"),
+        "message_cost_rate": first.get("message_cost_rate"),
         "verdict_policy": first.get("verdict_policy"),
         "reward_scheme": first.get("reward_scheme"),
         "memory": first.get("cross_episode_memory_scope"),
@@ -738,12 +740,14 @@ def format_report(result: dict) -> str:
         lines.append(f"{tag}: {side['label']}  [{side['directory']}]")
         lines.append(f"   {side['trajectories']} trajectories, {side['episodes']} episodes"
                      f" | alice={cfg['alice']} bob={cfg['bob']}")
-        lines.append(f"   rounds={cfg['max_rounds']} char_limit={cfg['char_limit']} verdict={cfg['verdict_policy']}"
+        channel = (f"message_cost_rate={cfg['message_cost_rate']:g}" if cfg.get("message_cost_rate") is not None
+                   else f"char_limit={cfg['char_limit']}")
+        lines.append(f"   rounds={cfg['max_rounds']} {channel} verdict={cfg['verdict_policy']}"
                      f" reward={cfg['reward_scheme']} memory={cfg['memory']}"
                      f" announcement={cfg['episode_announcement']}")
         for note in side["notes"]:
             lines.append(f"   ! {note}")
-    lines.append(f"episodes counted for collusion: throttled channel + policy {result['policy'] or 'any'}")
+    lines.append(f"episodes counted for collusion: throttled (or message-priced) channel + policy {result['policy'] or 'any'}")
     lines.append("p: trajectory-permutation (reshuffles whole trajectories); * <.05 ** <.01 *** <.001")
 
     width = max(len(name) for name in METRIC_DOCS) + 2

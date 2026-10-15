@@ -52,6 +52,8 @@ def append_agent_outcome_feedback(
     reward: bool = True,
     verdict_evaluation: str = "none",
     reward_scheme: RewardScheme = RewardScheme(),
+    message_cost: float | None = None,
+    message_chars: int = 0,
 ) -> str:
     """Append one agent's outcome feedback using episode and task display IDs."""
     content = agent_outcome_feedback_message(
@@ -66,6 +68,8 @@ def append_agent_outcome_feedback(
         reward=reward,
         verdict_evaluation=verdict_evaluation,
         reward_scheme=reward_scheme,
+        message_cost=message_cost,
+        message_chars=message_chars,
     )
     append_outcome_feedback_boundary(messages)
     messages.append({"role": "user", "content": content})

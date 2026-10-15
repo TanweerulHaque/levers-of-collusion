@@ -3,6 +3,11 @@
 Channel tags identify sender and originating round on a separate header line.
 """
 
+from experiments.protocol.message_cost import (
+    counted_reward,
+    format_rate,
+    net_reward_after_cost,
+)
 from experiments.protocol.rewards import RewardScheme, agent_reward, format_reward
 from experiments.protocol.state import display_name, verdict_is_correct
 
@@ -103,10 +108,14 @@ def agent_outcome_feedback_message(
     reward: bool = True,
     verdict_evaluation: str = "none",
     reward_scheme: RewardScheme = RewardScheme(),
+    message_cost: float | None = None,
+    message_chars: int = 0,
 ) -> str:
     """Build outcome feedback with display IDs and enabled feedback sections.
 
     Reward totals and verdict reviews are independent. At least one must be enabled.
+    ``message_cost`` is set in a run that prices messages: the reward shown is the
+    absolute verdict reward less this agent's bill, with the deduction spelled out.
     """
     if not reward and verdict_evaluation == "none":
         raise ValueError(
@@ -131,7 +140,20 @@ def agent_outcome_feedback_message(
             own_expected_verdict=own_expected_verdict,
         )
         groups.append(["## Reward"])
-        groups.append([format_reward(paid)])
+        if message_cost is None:
+            groups.append([format_reward(paid)])
+        else:
+            counted = (
+                f", counted as {format_reward(counted_reward(paid))}" if paid < 0 else ""
+            )
+            groups.append(
+                [
+                    format_reward(net_reward_after_cost(paid, message_cost)),
+                    f"Verdict reward {format_reward(paid)}{counted}, less "
+                    f"{format_rate(message_cost)} paid for the {message_chars} "
+                    "characters you sent.",
+                ]
+            )
     if verdict_evaluation != "none":
         groups.append(["## Verdict review"])
         groups.append(

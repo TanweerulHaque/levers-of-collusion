@@ -37,6 +37,12 @@ from experiments.protocol import (
     DEFAULT_MAX_ROUNDS,
     MEMORY_SCOPE,
 )
+from experiments.protocol.message_cost import (
+    DEFAULT_MESSAGE_COST_RATE,
+    format_rate,
+    free_characters,
+    message_cost_rate_from_args,
+)
 from experiments.protocol.rewards import (
     DEFAULT_REWARD_PENALTY,
     DEFAULT_REWARD_SHARING,
@@ -241,6 +247,53 @@ def add_feedback_arguments(parser: argparse.ArgumentParser) -> None:
     add_verdict_review_arguments(group)
 
 
+def add_message_cost_arguments(parser: argparse.ArgumentParser) -> None:
+    """Price each delivered message by its length instead of throttling the channel."""
+    group = parser.add_argument_group("message cost")
+    group.add_argument(
+        "--message-cost",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "Run the paid-communication experiment (default: off). The channel has no "
+            "character limit; each delivered message costs its sender "
+            "max(0, ln((x * rate) ** e)) where x is its length in characters. Each "
+            "agent pays separately, settled after the verdicts out of the absolute "
+            "value of its own episode reward, with no floor. Requires --reward."
+        ),
+    )
+    group.add_argument(
+        "--message-cost-rate",
+        type=float,
+        default=DEFAULT_MESSAGE_COST_RATE,
+        help=(
+            "The 'rate' in the cost formula above: messages of up to 1/rate "
+            "characters are free. Only used with --message-cost. "
+            f"Default {format_rate(DEFAULT_MESSAGE_COST_RATE)}."
+        ),
+    )
+
+
+def _validate_message_cost(args: argparse.Namespace) -> None:
+    """Pricing needs a reward to charge, a live Bob, and a channel nothing else limits."""
+    rate = args.message_cost_rate
+    if rate is None or not math.isfinite(rate) or rate <= 0:
+        raise ValueError("--message-cost-rate must be a finite, positive number.")
+    if not args.message_cost:
+        return
+    if not args.reward:
+        raise ValueError(
+            "--message-cost charges the episode reward, so it requires --reward."
+        )
+    if getattr(args, "bob_model", "") == "controlled":
+        raise ValueError("--message-cost needs a live Bob, not a controlled one.")
+    if args.throttle_spans:
+        raise ValueError(
+            "--message-cost leaves the channel unlimited in every episode, so it "
+            "cannot be combined with --throttle-spans."
+        )
+
+
 def _resolve_feedback_settings(args: argparse.Namespace) -> None:
     """Resolve reward defaults and validate dependent feedback settings."""
     if not args.reward and (
@@ -311,6 +364,8 @@ def build_run_parser() -> argparse.ArgumentParser:
     add_feedback_arguments(parser)
 
     add_reward_scheme_arguments(parser)
+
+    add_message_cost_arguments(parser)
 
     output_group = parser.add_argument_group("output")
     output_group.add_argument("--run-label", default="")
@@ -406,6 +461,7 @@ def validate_run_args(args: argparse.Namespace) -> None:
                 f"{_agent_flag(agent_id, 'max-output-tokens')} must be at least 1."
             )
     _resolve_feedback_settings(args)
+    _validate_message_cost(args)
     # Validate manually constructed options as well as parser-generated values.
     reward_scheme_from_args(args)
     controlled = getattr(args, "bob_model", "") == "controlled"
@@ -535,6 +591,7 @@ def _resume_state(
         "reflection": args.reflection,
         "reward": args.reward,
         "reward_scheme": reward_scheme.label,
+        "message_cost_rate": message_cost_rate_from_args(args),
     }
     for key in (
         "controlled_bob_task_model",
@@ -632,6 +689,7 @@ def _run_selected_episodes(
             reward_objective=args.reward
             and not (agent_id == "bob" and args.bob_model == "controlled"),
             reward_scheme=reward_scheme,
+            message_cost_rate=message_cost_rate_from_args(args),
         )
         for agent_id in AGENT_IDS
     }
@@ -699,6 +757,14 @@ def _run_selected_episodes(
         f"penalty {reward_scheme.penalty}",
         True,
     )
+    message_rate = message_cost_rate_from_args(args)
+    if message_rate is not None:
+        log_progress(
+            f"Message cost: unlimited channel, each message costs "
+            f"max(0, ln((chars * {format_rate(message_rate)}) ** e)); free up to "
+            f"{free_characters(message_rate):g} characters",
+            True,
+        )
     if completed_episodes:
         log_progress(
             f"Resuming after {completed_episodes}/{len(selected.pairs)} episodes "
@@ -712,6 +778,9 @@ def _run_selected_episodes(
         throttled = throttle_by_episode[episode_index] == "throttled"
         verdict_policy = verdict_policy_by_episode[episode_index]
         group = throttle_by_episode[episode_index]
+        if message_rate is not None:
+            # A priced channel is open: the price, not a character limit, is the constraint.
+            throttled, group = False, "message-cost"
         shown = " + ".join(display_task_id(task) for task in pair)
         internal = " + ".join(str(task["task_id"]) for task in pair)
         log_progress(
@@ -736,6 +805,7 @@ def _run_selected_episodes(
                 reward=args.reward,
                 verdict_review=args.verdict_review,
                 reward_scheme=reward_scheme,
+                message_cost_rate=message_rate,
                 controlled_bob_verdict=args.controlled_bob_verdict
                 if args.bob_model == "controlled"
                 else "",

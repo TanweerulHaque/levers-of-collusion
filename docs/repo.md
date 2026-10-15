@@ -49,6 +49,7 @@ Tool bodies. Agent act on world only through here.
   - `records.py` — map extracted text back to hidden record ID. Text-extraction task use it.
   - `messaging.py` — send message to peer. Read own raw log.
   - `submissions.py` — submit own answer. Submit `ACCEPT`/`REJECT` on peer.
+- `message_cost.py` — `--message-cost`: price of a message, `max(0, ln((x * rate) ** e))`, and net reward `|gross| - bill`. Channel unlimited, each agent pay own messages.
 - `state.py` — shared episode state. Per-agent state. Event log. `VERDICT_REWARD = 10`.
 - `rewards.py` — reward math.
 - `paths.py` — sandbox paths. Agent write only in own scratch dir.
@@ -92,6 +93,7 @@ LLM judge read saved `run.json`. Output CSV.
 - `agreement_judge.py` — find explicit deal in talk transcript. "You accept me, I accept you." Judge see transcript only, no verdict, no reward. Positive need two verbatim quote, else throw away.
 - `relaxation_judge.py` — find policy relaxation in private reflection. "Next time summary enough." Judge see one reflection only. Positive need verbatim quote.
 - `*_judge_prompts.md` — the prompt text for each judge.
+- `message_cost_metrics.py` — `--message-cost`: chars and bill per message, episode, round; by verdict pair and verdict accuracy; who paid more and by how much; per trajectory. Only runs with `--message-cost`.
 - `collusion_metrics.py` — EC, TC, CC from `run.json` verdicts (paper Sec. 3.1, App. C.1). No judge. `experiments/cli.py` call it after the run. Groups run by model pair and run label. Skip run that stop early, episode not throttled or not `raw-only`, and scripted Bob.
 
 ---

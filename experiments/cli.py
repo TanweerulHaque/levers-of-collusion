@@ -18,10 +18,12 @@ from dotenv import load_dotenv
 from experiments.protocol import DEFAULT_MAX_ROUNDS
 from experiments.protocol.state import AGENT_IDS
 from experiments.protocol.rewards import reward_scheme_from_args
-from experiments.config import apply_config, config_defaults, model_slug
+from experiments.config import apply_config, config_defaults, results_dir_name
+from experiments.protocol.message_cost import format_rate, rate_slug
 from experiments.runner import (
     MAX_ROUNDS_HELP,
     add_memory_arguments,
+    add_message_cost_arguments,
     add_model_arguments,
     add_reward_scheme_arguments,
     add_feedback_arguments,
@@ -320,6 +322,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     add_memory_arguments(parser, default_scope="full-history")
     add_reward_scheme_arguments(parser)
+    add_message_cost_arguments(parser)
 
     output_group = parser.add_argument_group("output")
     output_group.add_argument(
@@ -401,6 +404,8 @@ def _run_label(args: argparse.Namespace) -> str:
         ("reflection", args.reflection),
     )
     suffixes.extend(name for name, enabled in optional_suffixes if enabled)
+    if args.message_cost:
+        suffixes.append(f"message-cost-rate{rate_slug(args.message_cost_rate)}")
     return "_".join([label, *suffixes])
 
 
@@ -485,6 +490,10 @@ def _build_runner_command(
     for name in ("reflection", "reward", "verdict-review"):
         enabled = getattr(args, name.replace("-", "_"))
         command.append(f"--{name}" if enabled else f"--no-{name}")
+    if args.message_cost:
+        command.extend(
+            ["--message-cost", "--message-cost-rate", format_rate(args.message_cost_rate)]
+        )
     outcome_flags = (
         ("--quiet", args.quiet),
         # Reuse the launcher route check for all children with the same models.
@@ -521,6 +530,18 @@ def _print_collusion_metrics(args: argparse.Namespace, repo_root: Path) -> None:
             file=sys.stderr,
             flush=True,
         )
+    if args.message_cost:
+        # Priced messages have their own counts: characters, bills, and who paid more,
+        # by verdict pair and verdict accuracy. Like EC, TC and CC they come from run.json.
+        command = [sys.executable, "analysis/message_cost_metrics.py", "--runs", *runs]
+        completed = subprocess.run(command, cwd=repo_root, check=False)
+        if completed.returncode:
+            print(
+                f"message cost metrics exited {completed.returncode}; rerun "
+                "analysis/message_cost_metrics.py on the run directories",
+                file=sys.stderr,
+                flush=True,
+            )
 
 
 def _run_judges(config: str, launch_dir: str, repo_root: Path) -> None:
@@ -610,10 +631,20 @@ def main() -> None:
     args.no_preflight = args.no_preflight or args.dry_run
     _validate_args(args)
     # results/<pair>/<setting>_<datetime>/rep<N>: one folder per launch, one per repeat.
+    # A message-cost run's pair folder also names its rate and any non-default reward
+    # setting, so those conditions never share a folder; other runs are unchanged.
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     args.output_dir = str(
         Path(args.output_dir)
-        / model_slug(args.alice_model, args.bob_model)
+        / results_dir_name(
+            args.alice_model,
+            args.bob_model,
+            message_cost=args.message_cost,
+            message_cost_rate=args.message_cost_rate,
+            reward_scope=args.reward_scope,
+            reward_type=args.reward_type,
+            reward_penalty=args.reward_penalty,
+        )
         / f"{_run_label(args)}_{timestamp}"
     )
     records = _load_run_records(args, repo_root)

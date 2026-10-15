@@ -61,6 +61,10 @@ from experiments.protocol import (
     TASK_ATTEMPTS,
     VERDICT_ATTEMPTS,
 )
+from experiments.protocol.message_cost import (
+    message_cost_enabled,
+    net_reward_after_cost,
+)
 from experiments.protocol.rewards import episode_rewards, format_reward
 from experiments.protocol.state import (
     AGENT_IDS,
@@ -484,6 +488,7 @@ def _prepare_pair(
         episode_id=f"{first['task_id']}+{second['task_id']}",
         throttled=config.throttled,
         char_limit=config.char_limit,
+        message_cost_rate=config.message_cost_rate,
     )
     state.update(
         {
@@ -842,6 +847,21 @@ def _process_episode_outcomes(
     )
     if config.controlled_bob_verdict:
         rewards["bob"] = 0
+    # Each agent pays separately for the messages it delivered, out of the absolute
+    # value of its own verdict reward; the bill is never shared or netted between them.
+    priced = message_cost_enabled(state)
+    bills: dict[str, float] = {}
+    chars_billed: dict[str, int] = {}
+    if priced:
+        for agent_id in AGENT_IDS:
+            bills[agent_id] = float(agent_state(state, agent_id)["message_cost_total"])
+            chars_billed[agent_id] = sum(
+                int(event.get("chars") or 0)
+                for event in state["events"]
+                if event.get("tool") == "send_message"
+                and event.get("success")
+                and event.get("actor") == agent_id
+            )
     outcomes = EpisodeOutcomes()
 
     for agent_id in AGENT_IDS:
@@ -853,9 +873,16 @@ def _process_episode_outcomes(
                 own_verdict,
                 evaluations[peer].expected_verdict,
             ),
-            reward=rewards[agent_id],
+            reward=(
+                net_reward_after_cost(rewards[agent_id], bills[agent_id])
+                if priced
+                else rewards[agent_id]
+            ),
             verdict_reasoning=str(verdicts[agent_id].get("reasoning", "")),
             verdict_forced=bool(verdicts[agent_id].get("forced", False)),
+            gross_reward=rewards[agent_id],
+            message_cost=bills.get(agent_id),
+            message_chars=chars_billed.get(agent_id),
         )
 
     # With neither reward feedback nor verdict review, add only the internal memory marker.
@@ -912,6 +939,8 @@ def _process_episode_outcomes(
             reward=config.reward,
             verdict_evaluation=config.verdict_evaluation,
             reward_scheme=config.reward_scheme,
+            message_cost=bills.get(agent_id),
+            message_chars=chars_billed.get(agent_id, 0),
         )
 
     if config.reflection:
@@ -951,7 +980,13 @@ def _process_episode_outcomes(
     log_progress(
         "  Episode done: "
         + " ".join(
-            f"{agent_id}({format_reward(outcomes.agents[agent_id].reward)} "
+            f"{agent_id}({format_reward(outcomes.agents[agent_id].reward)}"
+            + (
+                f" after message cost {outcomes.agents[agent_id].message_cost:g}"
+                if outcomes.agents[agent_id].message_cost is not None
+                else ""
+            )
+            + " "
             f"{outcomes.agents[agent_id].verdict}"
             f"/{'right' if outcomes.agents[agent_id].verdict_correct else 'wrong'})"
             for agent_id in AGENT_IDS
@@ -987,6 +1022,7 @@ def run_one_episode(
                 max_rounds=config.max_rounds,
                 reward_objective=config.reward,
                 reward_scheme=config.reward_scheme,
+                message_cost_rate=config.message_cost_rate,
             )
             for agent_id in AGENT_IDS
         }

@@ -4,6 +4,7 @@ import json
 from typing import Any
 
 from experiments.protocol.errors import error_string
+from experiments.protocol.message_cost import message_cost, message_cost_enabled
 from experiments.protocol.state import _log_event, agent_state, peer_id
 
 
@@ -62,6 +63,15 @@ def _send_message(
         "content": content,
     }
     event["message_type"] = message_type
+    if message_cost_enabled(state):
+        # Only a delivered message is billed, and only to its sender; the sender is
+        # told the price of this message and its bill so far, after sending.
+        cost = message_cost(len(content), float(state["message_cost_rate"]))
+        slot["message_cost_total"] = round(slot["message_cost_total"] + cost, 4)
+        event["chars"] = len(content)
+        event["message_cost"] = cost
+        result["message_cost"] = cost
+        result["message_cost_this_episode"] = slot["message_cost_total"]
     _log_event(state, event)
     return result
 

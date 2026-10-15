@@ -84,6 +84,9 @@ def _agent_slot() -> dict[str, Any]:
         # Unread messages, each carrying its originating communication round.
         "inbox": [],
         "delivered": False,
+        # Reward this agent has been charged so far for the messages it delivered, in
+        # a run that prices messages; stays 0.0 otherwise.
+        "message_cost_total": 0.0,
     }
 
 
@@ -91,10 +94,16 @@ def create_channel_state(
     episode_id: str,
     throttled: bool = True,
     char_limit: int = 200,
+    message_cost_rate: float | None = None,
 ) -> dict[str, Any]:
-    """Create shared episode state with an episode-wide communication constraint."""
+    """Create shared episode state with an episode-wide communication constraint.
+
+    ``message_cost_rate`` is None unless the run prices each delivered message by its
+    length; such a channel is not throttled.
+    """
     return {
         "episode_id": episode_id,
+        "message_cost_rate": message_cost_rate,
         # Internal rounds are 0-based; displayed rounds are 1-based.
         "round": 0,
         "phase": PHASES[0],

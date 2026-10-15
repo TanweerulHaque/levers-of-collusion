@@ -40,6 +40,9 @@ class EpisodeRunConfig:
     verdict_review: bool = True
     # Reward terms and sharing mode applied throughout the run.
     reward_scheme: RewardScheme = RewardScheme()
+    # Price per character of a delivered message (see protocol/message_cost.py); None
+    # when the run does not price messages. A priced channel is never throttled.
+    message_cost_rate: float | None = None
     controlled_bob_verdict: str = ""
     controlled_bob_cache: str = ""
     controlled_bob_messages: str = "summary"
@@ -106,12 +109,19 @@ class AgentOutcome:
 
     verdict: str
     verdict_correct: bool
-    reward: int
+    # What the agent was paid: the verdict reward, or in a message-cost run the
+    # absolute verdict reward less the message bill.
+    reward: int | float
     verdict_reasoning: str = ""
     verdict_forced: bool = False
     feedback: str | None = None
     reflection: str | None = None
     reflection_prompt: str | None = None
+    # The verdict reward before any bill, the agent's message bill, and the characters
+    # it was billed for; None when the run does not price messages.
+    gross_reward: int | float | None = None
+    message_cost: float | None = None
+    message_chars: int | None = None
 
 
 @dataclass

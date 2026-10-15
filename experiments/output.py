@@ -25,6 +25,12 @@ from experiments.protocol import (
     TASK_ATTEMPTS,
     VERDICT_ATTEMPTS,
 )
+from experiments.protocol.message_cost import (
+    counted_reward,
+    free_characters,
+    message_cost_rate_from_args,
+)
+from experiments.protocol.messaging import _format_private_raw_log
 from experiments.protocol.rewards import reward_scheme_from_args
 from experiments.protocol.state import AGENT_IDS, agent_state, display_name, peer_id
 from experiments.usage import (
@@ -55,6 +61,55 @@ def _build_channel_transcript(
             }
         )
     return transcript
+
+
+def _build_message_cost(
+    *,
+    state: dict[str, Any],
+    outcomes: EpisodeOutcomes,
+    rate: float,
+) -> dict[str, Any]:
+    """What each agent was billed for its messages, round by round, and what it left.
+
+    ``messages`` lists the delivered messages of the sender in round order, one per
+    communication round: its length, its price, and whether the string get_log returned
+    arrived whole in it (``raw_log_verbatim``). ``reward_counted`` is the absolute
+    verdict reward the bill is taken from; ``net_reward`` is that less the bill.
+    """
+    by_agent: dict[str, Any] = {}
+    for agent_id in AGENT_IDS:
+        slot = agent_state(state, agent_id)
+        outcome = outcomes.agents[agent_id]
+        raw_log = _format_private_raw_log(slot) if slot["private_raw_log_retrieved"] else ""
+        messages = [
+            {
+                "event_id": event.get("event_id"),
+                "round": event.get("round"),
+                "chars": int(event.get("chars") or 0),
+                "cost": float(event.get("message_cost") or 0.0),
+                "raw_log_verbatim": bool(raw_log) and raw_log in str(event.get("content", "")),
+            }
+            for event in state["events"]
+            if event.get("tool") == "send_message"
+            and event.get("success")
+            and event.get("actor") == agent_id
+        ]
+        by_agent[agent_id] = {
+            "messages": messages,
+            "chars": sum(m["chars"] for m in messages),
+            "cost": round(sum(m["cost"] for m in messages), 4),
+            "gross_reward": outcome.gross_reward,
+            "reward_counted": counted_reward(outcome.gross_reward or 0),
+            "net_reward": outcome.reward,
+            "raw_log_chars": len(raw_log),
+            "raw_log_sent_verbatim": any(m["raw_log_verbatim"] for m in messages),
+        }
+    return {
+        "enabled": True,
+        "rate": rate,
+        "free_characters": free_characters(rate),
+        "by_agent": by_agent,
+    }
 
 
 def _build_agent_result(
@@ -113,6 +168,15 @@ def _build_agent_result(
         "verdict_forced": outcome.verdict_forced,
         # Store the reward paid to this agent.
         "reward": outcome.reward,
+        **(
+            {
+                "gross_reward": outcome.gross_reward,
+                "message_cost": outcome.message_cost,
+                "message_chars": outcome.message_chars,
+            }
+            if prepared.state.get("message_cost_rate") is not None
+            else {}
+        ),
         "outcome_feedback": outcome.feedback,
         "reflection": outcome.reflection,
         "reflection_prompt": outcome.reflection_prompt,
@@ -135,6 +199,15 @@ def build_episode_result(
     agent_messages: dict[str, list[dict[str, Any]]],
 ) -> dict[str, Any]:
     state = prepared.state
+    priced = (
+        {
+            "message_cost": _build_message_cost(
+                state=state, outcomes=outcomes, rate=config.message_cost_rate
+            )
+        }
+        if config.message_cost_rate is not None
+        else {}
+    )
     return {
         "episode_id": state["episode_id"],
         "task_type": prepared.task_type,
@@ -147,6 +220,7 @@ def build_episode_result(
         # Keep per-agent rewards; separate schemes need not pay equal amounts.
         "reward_by_agent": outcomes.rewards,
         "reward_scheme": config.reward_scheme.label,
+        **priced,
         "agents": {
             agent_id: _build_agent_result(
                 agent_id=agent_id,
@@ -174,6 +248,25 @@ def build_episode_result(
             "reward_sharing": config.reward_scheme.sharing,
             "reward_terms": config.reward_scheme.terms,
             "reward_penalty": config.reward_scheme.penalty,
+            **(
+                {
+                    "message_cost_rate": config.message_cost_rate,
+                    "message_cost_by_agent": {
+                        agent_id: priced["message_cost"]["by_agent"][agent_id]["cost"]
+                        for agent_id in AGENT_IDS
+                    },
+                    "message_chars_by_agent": {
+                        agent_id: priced["message_cost"]["by_agent"][agent_id]["chars"]
+                        for agent_id in AGENT_IDS
+                    },
+                    "gross_reward_by_agent": {
+                        agent_id: outcomes.agents[agent_id].gross_reward
+                        for agent_id in AGENT_IDS
+                    },
+                }
+                if priced
+                else {}
+            ),
             "verdict_correct_by_agent": {
                 agent_id: outcomes.agents[agent_id].verdict_correct
                 for agent_id in AGENT_IDS
@@ -219,6 +312,7 @@ def build_run_output(
             reward_objective=args.reward
             and not (agent_id == "bob" and args.bob_model == "controlled"),
             reward_scheme=reward_scheme,
+            message_cost_rate=message_cost_rate_from_args(args),
         )[0]["content"]
         for agent_id in AGENT_IDS
     }
@@ -308,6 +402,8 @@ def build_run_output(
             "reward_sharing": reward_scheme.sharing,
             "reward_terms": reward_scheme.terms,
             "reward_penalty": reward_scheme.penalty,
+            "message_cost": getattr(args, "message_cost", False),
+            "message_cost_rate": message_cost_rate_from_args(args),
             "prompt_texts": {
                 "system_prompts": system_prompts,
                 "reward_objective_texts": {
