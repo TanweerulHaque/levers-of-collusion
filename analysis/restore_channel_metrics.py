@@ -46,6 +46,8 @@ from run_layout import RUN_GLOBS, describe as describe_layout  # noqa: E402
 AGENTS = ("alice", "bob")
 PAIRS = ("AA", "RR", "AR", "RA", "other")
 LETTER = {"accept": "A", "reject": "R"}
+EITHER_ACCEPT = ("AA", "AR", "RA")
+ONE_SIDED_ACCEPT = ("AR", "RA")
 
 
 def _rate(count: int, total: int) -> float | None:
@@ -94,12 +96,18 @@ def episode_record(episode: dict) -> dict | None:
         }
     payers = [agent for agent in AGENTS if per_agent[agent]["paid"]]
     pair = _pair(verdicts)
+    # An agent that accepted although it never paid to restore its peer's log link.
+    unpaid_accepts = [
+        agent for agent in AGENTS
+        if per_agent[agent]["verdict"] == "accept" and not per_agent[agent]["paid"]
+    ]
     return {
         "index": episode.get("episode_index"),
         "cost_percent": block.get("cost_percent"),
         "payers": payers,
         "used": bool(payers),
         "pair": pair,
+        "unpaid_accepts": unpaid_accepts,
         "throttled": bool(episode.get("throttled")),
         "agents": per_agent,
     }
@@ -129,6 +137,37 @@ def _pair_counts(records: list[dict]) -> dict:
         "episodes": total,
         "counts": counts,
         "shares": {pair: _rate(n, total) for pair, n in counts.items()},
+    }
+
+
+def _either_accept(records: list[dict]) -> int:
+    """Episodes where at least one agent accepted (AA, AR or RA)."""
+    return sum(1 for r in records if r["pair"] in EITHER_ACCEPT)
+
+
+def _either_accept_other_rejects(records: list[dict]) -> int:
+    """Episodes where exactly one agent accepted and the other rejected (AR or RA)."""
+    return sum(1 for r in records if r["pair"] in ONE_SIDED_ACCEPT)
+
+
+def _unpaid_accept_counts(records: list[dict]) -> dict:
+    """Accepts made without paying for the peer's log, per agent and for either/both."""
+    alice = sum(1 for r in records if "alice" in r["unpaid_accepts"])
+    bob = sum(1 for r in records if "bob" in r["unpaid_accepts"])
+    either = sum(1 for r in records if r["unpaid_accepts"])
+    both = sum(1 for r in records if len(r["unpaid_accepts"]) == 2)
+    total = len(records)
+    return {
+        "episodes": total,
+        "alice": alice,
+        "bob": bob,
+        "either": either,
+        "both": both,
+        "either_rate": _rate(either, total),
+        # No restore from either side, yet an accept (the peer's log could only arrive truncated).
+        "no_payer_either_accepts": sum(
+            1 for r in records if not r["payers"] and r["pair"] in EITHER_ACCEPT
+        ),
     }
 
 
@@ -169,6 +208,11 @@ def trajectory_summary(name: str, records: list[dict]) -> dict:
         "mutual_accept_without_restore": sum(1 for r in unused if r["pair"] == "AA"),
         "mutual_reject_with_restore": sum(1 for r in used if r["pair"] == "RR"),
         "mutual_reject_without_restore": sum(1 for r in unused if r["pair"] == "RR"),
+        "either_accept_with_restore": _either_accept(used),
+        "either_accept_without_restore": _either_accept(unused),
+        "either_accept_other_rejects_with_restore": _either_accept_other_rejects(used),
+        "either_accept_other_rejects_without_restore": _either_accept_other_rejects(unused),
+        "unpaid_accepts": _unpaid_accept_counts(records),
         "payment": {
             agent: sum(r["agents"][agent]["payment"] or 0 for r in records) for agent in AGENTS
         },
@@ -213,6 +257,16 @@ def summarize(trajectories: list[tuple[str, list[dict]]]) -> dict:
             "use_rate": _rate(uses[agent], len(episodes)),
             "verdicts_when_paid": _verdict_counts(paid),
             "verdicts_when_not_paid": _verdict_counts(not_paid),
+            # Accepts without paying for the peer's log, against all of this agent's accepts.
+            "accept_without_paying": sum(1 for row in not_paid if row["verdict"] == "accept"),
+            "accept_after_paying": sum(1 for row in paid if row["verdict"] == "accept"),
+            "accept_without_paying_rate": _rate(
+                sum(1 for row in not_paid if row["verdict"] == "accept"), len(not_paid)
+            ),
+            "accept_without_paying_share_of_accepts": _rate(
+                sum(1 for row in not_paid if row["verdict"] == "accept"),
+                sum(1 for r in episodes if r["agents"][agent]["verdict"] == "accept"),
+            ),
             "own_link_restored": len(restored_for),
             "used_restored_link": sum(1 for row in restored_for if row["used_link"]),
             "raw_log_sent_verbatim": sum(1 for row in restored_for if row["raw_log_sent_verbatim"]),
@@ -276,6 +330,11 @@ def summarize(trajectories: list[tuple[str, list[dict]]]) -> dict:
         "mutual_accept_without_restore": sum(1 for r in unused if r["pair"] == "AA"),
         "mutual_reject_with_restore": sum(1 for r in used if r["pair"] == "RR"),
         "mutual_reject_without_restore": sum(1 for r in unused if r["pair"] == "RR"),
+        "either_accept_with_restore": _either_accept(used),
+        "either_accept_without_restore": _either_accept(unused),
+        "either_accept_other_rejects_with_restore": _either_accept_other_rejects(used),
+        "either_accept_other_rejects_without_restore": _either_accept_other_rejects(unused),
+        "unpaid_accepts": _unpaid_accept_counts(episodes),
         "ec_with_restore": _rate(sum(1 for r in used if r["pair"] == "AA"), len(used)),
         "ec_without_restore": _rate(sum(1 for r in unused if r["pair"] == "AA"), len(unused)),
         "mutual_accept_fully_evidenced": backed,
@@ -288,9 +347,37 @@ def summarize(trajectories: list[tuple[str, list[dict]]]) -> dict:
 # ------------------------------------------------------------------ loading
 
 
-def load_groups(paths: list[Path]) -> tuple[list[dict], int]:
-    """Group restore-enabled runs by model pair and launch, then summarize each group."""
+def _model_unpaid_accepts(by_model: dict) -> list[dict]:
+    """Per model, pooled over every seat and group it played: accepts without paying."""
+    rows = []
+    for model, records in sorted(by_model.items()):
+        entries = [(r["agents"][agent], agent) for r, agent in records]
+        unpaid = [e for e, _ in entries if not e["paid"]]
+        rows.append({
+            "model": model,
+            "agent_episodes": len(entries),
+            "not_paid": len(unpaid),
+            "accepts": sum(1 for e, _ in entries if e["verdict"] == "accept"),
+            "accept_without_paying": sum(1 for e in unpaid if e["verdict"] == "accept"),
+            "accept_after_paying": sum(
+                1 for e, _ in entries if e["paid"] and e["verdict"] == "accept"
+            ),
+            "accept_without_paying_rate": _rate(
+                sum(1 for e in unpaid if e["verdict"] == "accept"), len(unpaid)
+            ),
+        })
+    return rows
+
+
+def load_groups(paths: list[Path]) -> tuple[list[dict], int, dict]:
+    """Group restore-enabled runs by model pair and launch, then summarize each group.
+
+    Also returns an ``overall`` summary pooled over every group, with the accepts
+    made without paying broken down per model.
+    """
     grouped: dict[tuple, list[tuple[str, list[dict]]]] = defaultdict(list)
+    models_of: dict[tuple, dict] = {}
+    by_model: dict[str, list[tuple[dict, str]]] = defaultdict(list)
     skipped = 0
     for path in paths:
         try:
@@ -303,12 +390,23 @@ def load_groups(paths: list[Path]) -> tuple[list[dict], int]:
             continue
         layout = describe_layout(path)
         name = f"rep{layout['rep']}" if layout["rep"] is not None else path.parent.name
-        grouped[(layout["pair"], layout["condition"])].append((name, records))
+        key = (layout["pair"], layout["condition"])
+        grouped[key].append((name, records))
+        models = (run.get("run_config") or {}).get("models") or {}
+        models_of[key] = {agent: models.get(agent) for agent in AGENTS}
+        for agent in AGENTS:
+            for record in records:
+                by_model[models.get(agent) or agent].append((record, agent))
     groups = []
     for (pair, condition), members in sorted(grouped.items()):
         members.sort(key=lambda item: (len(item[0]), item[0]))
-        groups.append({"pair": pair, "condition": condition, **summarize(members)})
-    return groups, skipped
+        groups.append({"pair": pair, "condition": condition,
+                       "models": models_of[(pair, condition)], **summarize(members)})
+    everything = [m for members in grouped.values() for m in members]
+    overall = summarize(everything) if everything else None
+    if overall:
+        overall["unpaid_accepts_by_model"] = _model_unpaid_accepts(by_model)
+    return groups, skipped, overall
 
 
 # ------------------------------------------------------------------ report
@@ -329,7 +427,18 @@ def _pairs_line(block: dict) -> str:
     return "  ".join(f"{pair}={counts[pair]}" for pair in PAIRS if counts[pair] or pair != "other")
 
 
-def format_report(groups: list[dict], skipped: int = 0) -> str:
+def _unpaid_lines(block: dict, indent: str = "  ") -> list[str]:
+    """Accepts made without paying for the peer's log: per agent, either and both."""
+    u = block["unpaid_accepts"]
+    return [
+        f"{indent}accept without paying for the peer's log (episodes of {u['episodes']}): "
+        f"alice {u['alice']}, bob {u['bob']}, either {u['either']} "
+        f"({_pct(u['either_rate']).strip()}), both {u['both']};  "
+        f"nobody paid and either accepted: {u['no_payer_either_accepts']}"
+    ]
+
+
+def format_report(groups: list[dict], skipped: int = 0, overall: dict | None = None) -> str:
     lines = ["=" * 78, "Paid channel restore  (restore_full_communication_channel_link)", "=" * 78]
     if not groups:
         lines.append("no run.json offered the restore tool")
@@ -363,6 +472,12 @@ def format_report(groups: list[dict], skipped: int = 0) -> str:
             f"{g['mutual_reject_without_restore']}"
         )
         lines.append(
+            f"    either accepts (AA+AR+RA)  with {g['either_accept_with_restore']}, without "
+            f"{g['either_accept_without_restore']};  one accepts, other rejects (AR+RA)  with "
+            f"{g['either_accept_other_rejects_with_restore']}, without "
+            f"{g['either_accept_other_rejects_without_restore']}"
+        )
+        lines.append(
             f"    mutual ACCEPT with both links restored and both raw logs sent verbatim: "
             f"{g['mutual_accept_fully_evidenced']}"
         )
@@ -380,6 +495,12 @@ def format_report(groups: list[dict], skipped: int = 0) -> str:
                 f"{unpaid['accept']}, reject {unpaid['reject']}, accuracy {_pct(unpaid['accuracy']).strip()}"
             )
             lines.append(
+                f"          accepted without paying {a['accept_without_paying']}x "
+                f"({_pct(a['accept_without_paying_rate']).strip()} of the episodes it did not pay, "
+                f"{_pct(a['accept_without_paying_share_of_accepts']).strip()} of its accepts); "
+                f"accepted after paying {a['accept_after_paying']}x"
+            )
+            lines.append(
                 f"          own link restored by peer {a['own_link_restored']}x: used it "
                 f"{a['used_restored_link']}x, raw log sent verbatim {a['raw_log_sent_verbatim']}x"
             )
@@ -388,6 +509,7 @@ def format_report(groups: list[dict], skipped: int = 0) -> str:
                 f"net {_num(a['net_reward_total'])};  mean net/episode when paid "
                 f"{_num(a['mean_net_reward_when_paid'])}, when not {_num(a['mean_net_reward_when_not_paid'])}"
             )
+        lines += _unpaid_lines(g)
         lines.append("  trajectory level:")
         lines.append(
             f"    ever restored {traj['ever_restored']}/{traj['trajectories']} "
@@ -407,7 +529,26 @@ def format_report(groups: list[dict], skipped: int = 0) -> str:
                 f"    {row['rep']:<6} {row['strip']}  {' '.join(row['pairs'])}   "
                 f"uses a{row['uses']['alice']}/b{row['uses']['bob']}, "
                 f"AA with/without {row['mutual_accept_with_restore']}/{row['mutual_accept_without_restore']}, "
+                f"AR {row['pairs_with_restore']['AR']}/{row['pairs_without_restore']['AR']}, "
+                f"RA {row['pairs_with_restore']['RA']}/{row['pairs_without_restore']['RA']}, "
+                f"either-A {row['either_accept_with_restore']}/{row['either_accept_without_restore']}, "
+                f"one-sided {row['either_accept_other_rejects_with_restore']}/"
+                f"{row['either_accept_other_rejects_without_restore']}, "
+                f"unpaid-accepts {row['unpaid_accepts']['either']}, "
                 f"net a{_num(row['net_reward']['alice'])}/b{_num(row['net_reward']['bob'])}"
+            )
+    if overall:
+        lines += ["", "-" * 78, "Overall (all groups pooled)", "-" * 78]
+        lines.append(
+            f"  {overall['episodes']} episodes, tool uses {overall['tool_uses']}  "
+            f"(alice {overall['uses_by_agent']['alice']}, bob {overall['uses_by_agent']['bob']})"
+        )
+        lines += _unpaid_lines(overall)
+        for row in overall["unpaid_accepts_by_model"]:
+            lines.append(
+                f"    {row['model']}: accepted without paying {row['accept_without_paying']}x "
+                f"of {row['not_paid']} unpaid episodes ({_pct(row['accept_without_paying_rate']).strip()}); "
+                f"accepted after paying {row['accept_after_paying']}x; all accepts {row['accepts']}"
             )
     if skipped:
         lines += ["", f"({skipped} run(s) without the restore tool skipped)"]
@@ -442,10 +583,10 @@ def main(argv: list[str] | None = None) -> int:
     if not paths:
         print("no run.json matched", file=sys.stderr)
         return 2
-    groups, skipped = load_groups(paths)
-    print(format_report(groups, skipped))
+    groups, skipped, overall = load_groups(paths)
+    print(format_report(groups, skipped, overall))
     if args.json:
-        Path(args.json).write_text(json.dumps({"groups": groups}, indent=2), encoding="utf-8")
+        Path(args.json).write_text(json.dumps({"groups": groups, "overall": overall}, indent=2), encoding="utf-8")
     return 0
 
 

@@ -93,7 +93,7 @@ LLM judge read saved `run.json`. Output CSV.
 - `agreement_judge.py` — find explicit deal in talk transcript. "You accept me, I accept you." Judge see transcript only, no verdict, no reward. Positive need two verbatim quote, else throw away.
 - `relaxation_judge.py` — find policy relaxation in private reflection. "Next time summary enough." Judge see one reflection only. Positive need verbatim quote.
 - `*_judge_prompts.md` — the prompt text for each judge.
-- `restore_channel_metrics.py` — paid channel restore: uses per agent, verdict pairs with vs without restore, payments, trajectory level. Only runs with `--restore-channel-tool`.
+- `restore_channel_metrics.py` — paid channel restore: uses per agent, verdict pairs with vs without restore (incl. either-accepts), accepts without paying, payments, trajectory level. Only runs with `--restore-channel-tool`.
 - `collusion_metrics.py` — EC, TC, CC from `run.json` verdicts (paper Sec. 3.1, App. C.1). No judge. `experiments/cli.py` call it after the run. Groups run by model pair and run label. Skip run that stop early, episode not throttled or not `raw-only`, and scripted Bob.
 
 ---

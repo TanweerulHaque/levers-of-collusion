@@ -1279,6 +1279,12 @@ function csvIndexByEpisode(name, valueColumn) {
   return map;
 }
 
+/* Who paid for the restore in one episode: alice, bob, both, or — for no one. */
+function restorePaidBy(ep) {
+  const payers = (ep.restore_channel && ep.restore_channel.payers) || [];
+  return payers.length === 2 ? "both" : payers.length ? payers[0] : "—";
+}
+
 function renderOverview() {
   const frag = document.createDocumentFragment();
   const cfg = state.data.runJson.run_config || {};
@@ -1289,7 +1295,9 @@ function renderOverview() {
   const agreement = csvIndexByEpisode("agreement.csv", "agreement");
   const relaxation = csvIndexByEpisode("relaxation.csv", "relaxation");
   const table = el("table");
-  const cols = ["#", "episode_id", "group", "verdict policy", "alice", "bob", "reward", "agreement", "relaxation"];
+  const hasRestore = episodes.some((ep) => ep.restore_channel && ep.restore_channel.enabled);
+  const cols = ["#", "episode_id", "group", "verdict policy", "alice", "bob", "reward"]
+    .concat(hasRestore ? ["restore paid by"] : [], ["agreement", "relaxation"]);
   table.append(el("thead", {}, el("tr", {}, cols.map((c) => el("th", { text: c })))));
   const tbody = el("tbody");
   for (const ep of episodes) {
@@ -1308,6 +1316,7 @@ function renderOverview() {
       el("td", { text: ep.verdict_policy || "—" }),
       cell(agents.alice), cell(agents.bob),
       el("td", { text: Object.entries(rewards).map(([k, v]) => k + "=" + v).join(" ") || "—" }),
+      hasRestore ? el("td", { text: restorePaidBy(ep) }) : null,
       el("td", {}, agreement && agreement.has(key) ? agreement.get(key).map(judgeBadge) : el("span", { class: "muted", text: "—" })),
       el("td", {}, relaxation && relaxation.has(key) ? relaxation.get(key).map(judgeBadge) : el("span", { class: "muted", text: "—" })),
     ));
@@ -1718,6 +1727,8 @@ const RESTORE_PAIRS = ["AA", "RR", "AR", "RA", "other"];
 const RESTORE_STRIP_WORD = { "·": "no one paid", a: "Alice paid", b: "Bob paid", B: "both paid" };
 const fmtNum = (v) => v === null || v === undefined ? "—" : typeof v === "number" ? (Number.isInteger(v) ? String(v) : v.toFixed(2)) : String(v);
 
+const withR_rate = (n, d) => d ? n / d : null;
+
 /* Everything restore_channel_metrics.summarize computes, for a launch, a rep, or a condition. */
 function restoreCard(r, title, linkReps) {
   const card = el("div", { class: "card" }, el("h3", { text: title || "paid channel restore" }));
@@ -1740,14 +1751,33 @@ function restoreCard(r, title, linkReps) {
     "EC with " + pct1(r.ec_with_restore) + " · without " + pct1(r.ec_without_restore)));
   tiles.append(tile("Mutual REJECT with / without restore", r.mutual_reject_with_restore + " / " + r.mutual_reject_without_restore,
     "mutual ACCEPT backed by both raw logs, verbatim: " + r.mutual_accept_fully_evidenced));
+  tiles.append(tile("Either accepts with / without restore", r.either_accept_with_restore + " / " + r.either_accept_without_restore,
+    "AA + AR + RA · " + pct1(withR_rate(r.either_accept_with_restore, r.episodes_with_restore)) + " with · " +
+    pct1(withR_rate(r.either_accept_without_restore, r.episodes - r.episodes_with_restore)) + " without"));
+  tiles.append(tile("Either accepts, other rejects, with / without restore",
+    r.either_accept_other_rejects_with_restore + " / " + r.either_accept_other_rejects_without_restore,
+    "AR + RA · " + pct1(withR_rate(r.either_accept_other_rejects_with_restore, r.episodes_with_restore)) + " with · " +
+    pct1(withR_rate(r.either_accept_other_rejects_without_restore, r.episodes - r.episodes_with_restore)) + " without"));
+  const ua = r.unpaid_accepts;
+  tiles.append(tile("Accepted without paying (either)", ua.either + " of " + ua.episodes,
+    "Alice " + ua.alice + " · Bob " + ua.bob + " · both " + ua.both + " · " + pct1(ua.either_rate) + " of episodes"));
   card.append(tiles);
 
   const withR = r.pairs_with_restore, without = r.pairs_without_restore;
   const pairKeys = RESTORE_PAIRS.filter((k) => k !== "other" || withR.counts.other || without.counts.other);
   card.append(el("h4", { text: "verdict pairs with and without a restore (Alice first)" }));
-  card.append(simpleTable(["pair", "with restore", "share", "without restore", "share"],
-    pairKeys.map((k) => [PAIR_LABELS[k] || k, withR.counts[k], pct1(withR.shares[k]), without.counts[k], pct1(without.shares[k])])
-      .concat([["episodes", withR.episodes, "", without.episodes, ""]])));
+  const rowShare = (a, b) => a + b ? pct1(a / (a + b)) : "—";
+  const pairRow = (label, a, b) => [label, a, pct1(withR_rate(a, withR.episodes)), b, pct1(withR_rate(b, without.episodes)),
+    a + b, rowShare(a, b), rowShare(b, a)];
+  const eitherAcc = (c) => c.AA + c.AR + c.RA, oneSided = (c) => c.AR + c.RA;
+  card.append(simpleTable(["pair", "with restore", "share of with", "without restore", "share of without",
+      "total", "row share with", "row share without"],
+    pairKeys.map((k) => pairRow(PAIR_LABELS[k] || k, withR.counts[k], without.counts[k]))
+      .concat([pairRow("either accepts (AA + AR + RA)", eitherAcc(withR.counts), eitherAcc(without.counts)),
+               pairRow("either accepts, other rejects (AR + RA)", oneSided(withR.counts), oneSided(without.counts)),
+               ["episodes", withR.episodes, "", without.episodes, "", withR.episodes + without.episodes,
+                rowShare(withR.episodes, without.episodes), rowShare(without.episodes, withR.episodes)]])));
+  card.append(el("p", { class: "sub muted", text: "\"share of with / without\" divides by that column's episodes; \"row share\" divides a row by its own total, so with + without = 100%." }));
 
   card.append(el("h4", { text: "per agent" }));
   const agentRows = ["alice", "bob"].map((agent) => {
@@ -1761,6 +1791,17 @@ function restoreCard(r, title, linkReps) {
   });
   card.append(simpleTable(["agent", "paid", "own verdicts when paid · accuracy", "own verdicts when not paid · accuracy",
     "own link restored by peer · used · raw log verbatim", "reward gross − paid = net", "mean net / episode paid / not"], agentRows));
+  card.append(el("h4", { text: "accepted without paying for the peer's log" }));
+  card.append(simpleTable(["agent", "accepted without paying", "of episodes it did not pay", "share of all its accepts", "accepted after paying"],
+    ["alice", "bob"].map((agent) => {
+      const a = r.per_agent[agent];
+      return [agent, a.accept_without_paying, pct1(a.accept_without_paying_rate),
+        pct1(a.accept_without_paying_share_of_accepts), a.accept_after_paying];
+    }).concat([["either (episodes)", ua.either, pct1(ua.either_rate), "", ""],
+               ["both in one episode", ua.both, "", "", ""],
+               ["nobody paid, either accepted", ua.no_payer_either_accepts, "", "", ""]])));
+  card.append(el("p", { class: "sub muted", text: "An agent \"pays\" by restoring the link for the peer's log it receives; accepting without paying means it judged on the peer's truncated message." }));
+
   card.append(el("p", { class: "sub muted", text: "\"Own verdicts\" are the agent's verdicts on its peer. A restored link was used when the sender delivered a message over the limit; raw log verbatim means the string get_log returned arrived whole in one message." }));
 
   if (r.trajectories > 1) {
@@ -1785,10 +1826,17 @@ function restoreCard(r, title, linkReps) {
       el("td", { class: "num", text: row.uses.alice + " / " + row.uses.bob }),
       el("td", { class: "num", text: row.mutual_accept_with_restore + " / " + row.mutual_accept_without_restore }),
       el("td", { class: "num", text: row.mutual_reject_with_restore + " / " + row.mutual_reject_without_restore }),
+      el("td", { class: "num", text: row.pairs_with_restore.AR + " / " + row.pairs_without_restore.AR }),
+      el("td", { class: "num", text: row.pairs_with_restore.RA + " / " + row.pairs_without_restore.RA }),
+      el("td", { class: "num", text: row.either_accept_with_restore + " / " + row.either_accept_without_restore }),
+      el("td", { class: "num", text: row.either_accept_other_rejects_with_restore + " / " + row.either_accept_other_rejects_without_restore }),
+      el("td", { class: "num", text: row.unpaid_accepts.alice + " / " + row.unpaid_accepts.bob + " (" + row.unpaid_accepts.either + ")" }),
       el("td", { class: "num", text: fmtNum(row.payment.alice) + " / " + fmtNum(row.payment.bob) }),
       el("td", { class: "num", text: fmtNum(row.net_reward.alice) + " / " + fmtNum(row.net_reward.bob) })));
     card.append(el("div", { class: "tablewrap" }, el("table", {},
-      el("thead", {}, el("tr", {}, ["trajectory", "payer by episode", "verdicts", "uses A/B", "AA with/without", "RR with/without", "paid A/B", "net reward A/B"]
+      el("thead", {}, el("tr", {}, ["trajectory", "payer by episode", "verdicts", "uses A/B", "AA with/without", "RR with/without",
+        "AR (accept-reject) with/without", "RA (reject-accept) with/without", "either accept with/without",
+        "either accept, other rejects with/without", "accepted unpaid A/B (episodes)", "paid A/B", "net reward A/B"]
         .map((c, i) => el("th", { class: i > 2 ? "num" : "", text: c })))),
       el("tbody", {}, rows))));
     card.append(el("p", { class: "sub muted", text: "Payer by episode: a = Alice paid, b = Bob paid, B = both, · = no one. Hover it for each episode." }));
@@ -1801,10 +1849,11 @@ function restoreEpisodeTable(records) {
   const who = (rec) => rec.payers.length ? rec.payers.join(" + ") : "—";
   const per = (rec, f) => ["alice", "bob"].map((a) => f(rec.agents[a])).join(" / ");
   return el("div", { class: "card" }, el("h3", { text: "paid channel restore by episode" }),
-    simpleTable(["episode_index", "paid by", "round paid A/B", "verdicts", "gross A/B", "paid A/B", "net A/B", "used restored link A/B", "raw log verbatim A/B"],
+    simpleTable(["episode_index", "paid by", "round paid A/B", "verdicts", "accepted without paying", "gross A/B", "paid A/B", "net A/B", "used restored link A/B", "raw log verbatim A/B"],
       records.map((rec) => [rec.index, who(rec),
         per(rec, (x) => x.paid && x.round !== null ? String(x.round + 1) : "—"),
         rec.pair,
+        rec.unpaid_accepts.length ? rec.unpaid_accepts.join(" + ") : "—",
         per(rec, (x) => fmtNum(x.gross_reward)), per(rec, (x) => fmtNum(x.payment)), per(rec, (x) => fmtNum(x.net_reward)),
         per(rec, (x) => x.own_link_restored ? (x.used_link ? "yes" : "no") : "—"),
         per(rec, (x) => x.own_link_restored ? (x.raw_log_sent_verbatim ? "yes" : "no") : "—")])),

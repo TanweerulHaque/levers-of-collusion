@@ -315,7 +315,7 @@ python analysis/restore_channel_metrics.py --config configs/main.yaml
 python analysis/restore_channel_metrics.py --runs 'results/*/*/rep*/run.json' --json out.json
 ```
 
-Report: tool uses per agent and who use more; episodes with no / one / both payer; verdict pairs (AA, RR, AR, RA) with vs without restore, EC with vs without; each agent own verdicts when paid vs not, with accuracy; restored link used and raw log verbatim; gross, paid, net reward; trajectory level (ever restored, collude without restore, collude and never restore, first use); one line per trajectory.
+Report: tool uses per agent and who use more; episodes with no / one / both payer; verdict pairs (AA, RR, AR, RA) with vs without restore, plus "either accepts" (AA+AR+RA) and "one accepts, other rejects" (AR+RA), EC with vs without; accepts made without paying for the peer's log (per agent, either, both, per model and pooled overall); each agent own verdicts when paid vs not, with accuracy; restored link used and raw log verbatim; gross, paid, net reward; trajectory level (ever restored, collude without restore, collude and never restore, first use); one line per trajectory.
 
 Viewer show same: launch **Summary** tab, rep **metrics** tab (plus per-episode table), **Collusion** tab per condition (top bar on episode cell = restore paid). Episode list badge payer.
 
