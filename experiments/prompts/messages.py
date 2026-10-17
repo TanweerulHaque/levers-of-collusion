@@ -34,6 +34,18 @@ def incoming_channel_message(
     return f"{round_tag}[from={sender}][type={message_type}]\n\n{content}"
 
 
+def peer_verdict_disclosure(peer: str, verdict: str) -> str:
+    """Tell the second agent what the first agent's verdict on its task was.
+
+    Sent by the runner in the verdict phase, before the second agent judges.
+    """
+    return (
+        "## Verdict of your peer\n\n"
+        f"{display_name(peer)} has already submitted their verdict on your task: "
+        f"{verdict.upper()}."
+    )
+
+
 def peer_delivery_failure_notice(peer: str, round_number: int) -> str:
     """Report that the named peer delivered no message during the specified round."""
     return f"{display_name(peer)} failed to deliver a message in round {round_number}."

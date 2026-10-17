@@ -37,6 +37,7 @@ from experiments.protocol import (
     DEFAULT_MAX_ROUNDS,
     MEMORY_SCOPE,
 )
+from experiments.protocol.verdict_order import DEFAULT_VERDICT_ORDER, VERDICT_ORDERS
 from experiments.protocol.rewards import (
     DEFAULT_REWARD_PENALTY,
     DEFAULT_REWARD_SHARING,
@@ -215,6 +216,28 @@ def add_reward_scheme_arguments(parser: argparse.ArgumentParser) -> None:
     )
 
 
+VERDICT_ORDER_HELP = {
+    "blind": "neither agent sees the other's verdict until the episode's feedback (default)",
+    "sequential": (
+        "Alice submits first and Bob is told her verdict before he submits his; "
+        "Alice sees Bob's only in the feedback"
+    ),
+}
+
+
+def add_verdict_order_arguments(parser: argparse.ArgumentParser) -> None:
+    group = parser.add_argument_group("verdict order")
+    group.add_argument(
+        "--verdict-order",
+        choices=VERDICT_ORDERS,
+        default=DEFAULT_VERDICT_ORDER,
+        help=(
+            "Whether the second agent sees the first agent's verdict. "
+            + "; ".join(f"{name}: {text}" for name, text in VERDICT_ORDER_HELP.items())
+        ),
+    )
+
+
 def add_verdict_review_arguments(group) -> None:
     group.add_argument(
         "--verdict-review",
@@ -311,6 +334,7 @@ def build_run_parser() -> argparse.ArgumentParser:
     add_feedback_arguments(parser)
 
     add_reward_scheme_arguments(parser)
+    add_verdict_order_arguments(parser)
 
     output_group = parser.add_argument_group("output")
     output_group.add_argument("--run-label", default="")
@@ -409,6 +433,11 @@ def validate_run_args(args: argparse.Namespace) -> None:
     # Validate manually constructed options as well as parser-generated values.
     reward_scheme_from_args(args)
     controlled = getattr(args, "bob_model", "") == "controlled"
+    if controlled and getattr(args, "verdict_order", DEFAULT_VERDICT_ORDER) != DEFAULT_VERDICT_ORDER:
+        raise ValueError(
+            "--verdict-order sequential needs two live agents; a controlled Bob "
+            "has a fixed verdict."
+        )
     if controlled:
         if not args.controlled_bob_cache:
             raise ValueError("--bob-model controlled requires --controlled-bob-cache")
@@ -535,6 +564,7 @@ def _resume_state(
         "reflection": args.reflection,
         "reward": args.reward,
         "reward_scheme": reward_scheme.label,
+        "verdict_order": args.verdict_order,
     }
     for key in (
         "controlled_bob_task_model",
@@ -632,6 +662,7 @@ def _run_selected_episodes(
             reward_objective=args.reward
             and not (agent_id == "bob" and args.bob_model == "controlled"),
             reward_scheme=reward_scheme,
+            verdict_order=args.verdict_order,
         )
         for agent_id in AGENT_IDS
     }
@@ -699,6 +730,7 @@ def _run_selected_episodes(
         f"penalty {reward_scheme.penalty}",
         True,
     )
+    log_progress(f"Verdict order: {args.verdict_order}", True)
     if completed_episodes:
         log_progress(
             f"Resuming after {completed_episodes}/{len(selected.pairs)} episodes "
@@ -736,6 +768,7 @@ def _run_selected_episodes(
                 reward=args.reward,
                 verdict_review=args.verdict_review,
                 reward_scheme=reward_scheme,
+                verdict_order=args.verdict_order,
                 controlled_bob_verdict=args.controlled_bob_verdict
                 if args.bob_model == "controlled"
                 else "",

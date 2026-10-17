@@ -35,6 +35,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import collusion_metrics  # noqa: E402
 import compare_runs  # noqa: E402
+import verdict_influence  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 # The page is embedded in this file and read once at start-up, so remember which version
@@ -370,11 +371,20 @@ def launch_reps(launch_dir: Path) -> list[Path]:
     return sorted((d for d in launch_dir.iterdir() if is_run_dir(d)), key=lambda d: rep_order(d.name))
 
 
+def trajectory_influence(runs: list[dict]) -> dict:
+    """Bob against Alice over the runs' episodes (every episode, as the rates above do)."""
+    summary = verdict_influence.summarize(
+        [verdict_influence.episode_rows(ordered_episodes(run)) for run in runs])
+    summary.pop("tallies")
+    return summary
+
+
 def launch_summary(launch_dir: Path) -> dict:
     """EC, TC and CC over a launch's reps, plus the first rep's config for the header."""
     runs = [(d, json.loads((d / "run.json").read_text(encoding="utf-8"))) for d in launch_reps(launch_dir)]
     rates = collusion_rates([(d.name, run) for d, run in runs])
     rates["run_config"] = runs[0][1].get("run_config") or {} if runs else {}
+    rates["influence"] = trajectory_influence([run for _, run in runs])
     return rates
 
 
@@ -501,6 +511,7 @@ def compute_metrics(run: dict, tables: dict) -> dict:
         bucket["rate"] = rate(bucket["mutual_accept"], bucket["episodes"])
 
     return {"episodes": episodes, "agents": agents, "collusion": collusion,
+            "influence": trajectory_influence([run]),
             "agreement": agreement, "relaxation": relaxation, "per_agent": per_agent,
             "groups": sorted(groups.values(), key=lambda b: (b["group"], b["verdict_policy"]))}
 
@@ -1116,6 +1127,7 @@ function renderRunHead() {
   add("verdict", cfg.verdict_policy);
   add("memory", cfg.cross_episode_memory_scope || cfg.memory_scope);
   add("reward", cfg.reward_scheme);
+  add("verdict order", cfg.verdict_order || "blind");
   add("calls", num(usage.call_count));
   add("tokens", num(usage.total_tokens));
   add("cost", usage.cost_usd !== undefined ? "$" + usage.cost_usd : null);
@@ -1207,6 +1219,7 @@ function renderLaunchHead(launch, summary) {
   add("verdict", cfg.verdict_policy);
   add("memory", cfg.cross_episode_memory_scope || cfg.memory_scope);
   add("reward", cfg.reward_scheme);
+  add("verdict order", cfg.verdict_order || "blind");
   head.append(chips);
 }
 
@@ -1261,6 +1274,13 @@ function csvIndexByEpisode(name, valueColumn) {
   return map;
 }
 
+/* What the runner showed Bob of Alice's verdict before he judged; empty in a blind run. */
+function toldBadge(ep) {
+  const seen = ((ep.analysis_metadata || {}).peer_verdict_seen_by_agent || {}).bob;
+  if (!seen) return el("span", { class: "muted", text: "—" });
+  return badge("Alice: " + seen.verdict + (seen.forced ? " (forced)" : ""), seen.verdict === "accept" ? "pos" : "info");
+}
+
 function renderOverview() {
   const frag = document.createDocumentFragment();
   const cfg = state.data.runJson.run_config || {};
@@ -1271,7 +1291,7 @@ function renderOverview() {
   const agreement = csvIndexByEpisode("agreement.csv", "agreement");
   const relaxation = csvIndexByEpisode("relaxation.csv", "relaxation");
   const table = el("table");
-  const cols = ["#", "episode_id", "group", "verdict policy", "alice", "bob", "reward", "agreement", "relaxation"];
+  const cols = ["#", "episode_id", "group", "verdict policy", "alice", "bob", "bob was told", "reward", "agreement", "relaxation"];
   table.append(el("thead", {}, el("tr", {}, cols.map((c) => el("th", { text: c })))));
   const tbody = el("tbody");
   for (const ep of episodes) {
@@ -1289,6 +1309,7 @@ function renderOverview() {
       el("td", { text: ep.group || "—" }),
       el("td", { text: ep.verdict_policy || "—" }),
       cell(agents.alice), cell(agents.bob),
+      el("td", {}, toldBadge(ep)),
       el("td", { text: Object.entries(rewards).map(([k, v]) => k + "=" + v).join(" ") || "—" }),
       el("td", {}, agreement && agreement.has(key) ? agreement.get(key).map(judgeBadge) : el("span", { class: "muted", text: "—" })),
       el("td", {}, relaxation && relaxation.has(key) ? relaxation.get(key).map(judgeBadge) : el("span", { class: "muted", text: "—" })),
@@ -1331,6 +1352,8 @@ function renderEpisodes() {
       if (!agent) continue;
       summary.append(badge(name + ": " + agent.verdict + (agent.verdict_correct ? " ✓" : " ✗"), agent.verdict_correct ? "pos" : "neg"));
     }
+    const told = (ep.analysis_metadata || {}).peer_verdict_seen_by_agent;
+    if (told && told.bob) summary.append(badge("bob was told alice: " + told.bob.verdict, "info"));
     box.append(summary);
 
     const body = el("div", { class: "body" });
@@ -1534,6 +1557,41 @@ function signalStrip(metrics) {
 /* EC, TC and CC as defined in the paper (Appendix C.1), over every rep of this
    launch. Each rep is one trajectory; C = 1 for mutual ACCEPT. */
 /* The rep's own tab, opened from its row in the summary table. */
+/* The second agent against the first: does Bob follow Alice's verdict? */
+function influenceCard(inf, title) {
+  const card = el("div", { class: "card" }, el("h3", { text: title || "verdict order · does Bob follow Alice?" }));
+  if (!inf || !inf.episodes) {
+    card.append(el("p", { class: "muted", text: "No episode with two usable verdicts (a forced reject is not a judgement and is left out)." }));
+    return card;
+  }
+  const m = inf.metrics, gap = inf.gaps.reciprocity_gap;
+  const chips = el("div", { class: "chips" });
+  chips.append(el("span", { class: "chip" }, el("b", { text: "verdict order " }), inf.order));
+  chips.append(el("span", { class: "chip" }, el("b", { text: "episodes " }), String(inf.episodes)));
+  card.append(chips);
+  const count = (x) => x.k + " of " + x.n + ciText(x.ci);
+  const tiles = el("div", { class: "tiles", style: "margin-top:10px" });
+  tiles.append(tile("Bob ACCEPT | Alice ACCEPT", pct1(m.follower_accept_given_leader_accept.rate), count(m.follower_accept_given_leader_accept)));
+  tiles.append(tile("Bob ACCEPT | Alice REJECT", pct1(m.follower_accept_given_leader_reject.rate), count(m.follower_accept_given_leader_reject)));
+  tiles.append(tile("Reciprocity gap", gap.value === null ? "—" : (gap.value >= 0 ? "+" : "−") + Math.abs(gap.value * 100).toFixed(1) + " pp",
+    gap.ci ? "95% CI " + (gap.ci[0] * 100).toFixed(0) + " to " + (gap.ci[1] * 100).toFixed(0) + " pp (whole trajectories resampled)" : "needs two trajectories for an interval",
+    gap.value === null));
+  tiles.append(tile("Bob matches Alice", pct1(m.follower_matches_leader.rate), count(m.follower_matches_leader)));
+  card.append(tiles);
+  const names = Object.keys(m).filter((n) => m[n].n || n !== "follower_cites_leader_rate");
+  card.append(el("div", { class: "tablewrap" }, el("table", {},
+    el("thead", {}, el("tr", {}, ["metric", "rate", "95% CI", "count"].map((c, i) => el("th", { class: i ? "num" : "", text: c })))),
+    el("tbody", {}, names.map((n) => el("tr", {},
+      el("td", { title: m[n].description, text: m[n].label }),
+      el("td", { class: "num", text: pct1(m[n].rate) }),
+      el("td", { class: "num muted", text: m[n].ci ? (m[n].ci[0] * 100).toFixed(1) + " – " + (m[n].ci[1] * 100).toFixed(1) + "%" : "—" }),
+      el("td", { class: "num muted", text: m[n].k + " / " + m[n].n })))))));
+  card.append(el("p", { class: "sub muted", text: inf.order === "sequential"
+    ? "Bob is told Alice's verdict before he judges. The reciprocity gap includes what the two models share anyway, so compare it with a blind run in the Compare tab: sequential gap minus blind gap is the effect of showing the verdict."
+    : "Neither agent sees the other's verdict, so Bob cannot react to Alice: this gap is only what the pair shares. It is the baseline a sequential run is measured against." }));
+  return card;
+}
+
 function repLink(rep) {
   const launch = currentLaunch();
   const dir = launch && launch.runs.find((d) => d === rep || d.endsWith("/" + rep));
@@ -1571,6 +1629,7 @@ function renderPaperRates(paper) {
   frag.append(el("div", { class: "card" }, el("h3", { text: "collusion rates (paper EC / TC / CC)" }),
     el("div", { class: "tablewrap" }, table),
     ...notes.map((text) => el("p", { class: "sub muted", text: text }))));
+  frag.append(influenceCard(paper.influence, "verdict order · does Bob follow Alice? (all " + n + " rep" + (n === 1 ? "" : "s") + ")"));
   return frag;
 }
 
@@ -1603,6 +1662,7 @@ function renderMetrics() {
   frag.append(tiles);
 
   frag.append(signalStrip(metrics));
+  frag.append(influenceCard(metrics.influence));
 
   // Onset of each signal, side by side, with the episode it first fired in.
   const onsetRows = [
@@ -2086,6 +2146,7 @@ function groupCard(group) {
   add("verdict", cfg.verdict_policy);
   add("reward", cfg.reward_scheme);
   add("memory", cfg.memory);
+  add("verdict order", cfg.verdict_order);
   card.append(chips);
 
   const notes = [];
@@ -2119,6 +2180,7 @@ function groupCard(group) {
   card.append(el("h3", { style: "margin-top:16px", text: "trajectories" }));
   card.append(trajectoryStrip(group));
   card.append(el("p", { class: "sub muted", text: "Episodes are numbered from 1 as in the paper; the other tabs show episode_index from 0. Hover a cell for the verdicts." }));
+  card.append(influenceCard(group.influence));
   card.append(outcomesSection(group));
   return card;
 }
@@ -2152,12 +2214,15 @@ function compareChart(groups) {
 }
 
 function summaryTable(groups) {
-  const head = el("tr", {}, ["model pair", "condition", "N", "T", "EC", "TC", "CC", "mean onset"].map((c) => el("th", { text: c })));
+  const head = el("tr", {}, ["model pair", "condition", "N", "T", "EC", "TC", "CC", "mean onset", "verdict order", "Bob | Alice ACCEPT", "reciprocity gap"].map((c) => el("th", { text: c })));
   const body = groups.map((g) => el("tr", {},
     el("td", { text: g.pair }), el("td", { text: g.condition }),
     el("td", { text: g.trajectories + (g.expected ? " / " + g.expected : "") }), el("td", { text: g.T === null ? "—" : g.T }),
     el("td", { text: pct1(g.EC) }), el("td", { text: pct1(g.TC) }), el("td", { text: pct1(g.CC) }),
-    el("td", { text: g.mean_onset === null ? "—" : g.mean_onset.toFixed(2) })));
+    el("td", { text: g.mean_onset === null ? "—" : g.mean_onset.toFixed(2) }),
+    el("td", { text: g.config.verdict_order }),
+    el("td", { text: pct1(g.influence.metrics.follower_accept_given_leader_accept.rate) }),
+    el("td", { text: g.influence.gaps.reciprocity_gap.value === null ? "—" : (g.influence.gaps.reciprocity_gap.value * 100).toFixed(1) + " pp" })));
   return el("div", { class: "tablewrap" }, el("table", {}, el("thead", {}, head), el("tbody", {}, body)));
 }
 
@@ -2375,6 +2440,7 @@ function sideCard(side, tag) {
   add("alice", cfg.alice); add("bob", cfg.bob);
   add("rounds", cfg.max_rounds); add("char limit", cfg.char_limit);
   add("verdict", cfg.verdict_policy); add("reward", cfg.reward_scheme); add("memory", cfg.memory);
+  add("verdict order", cfg.verdict_order);
   add("announcement", cfg.episode_announcement + (cfg.episode_announcement_channels && cfg.episode_announcement_channels.length ? " (" + cfg.episode_announcement_channels.join(", ") + ")" : ""));
   card.append(chips);
   for (const note of side.notes) card.append(el("p", { class: "warn", text: "! " + note }));
@@ -2667,6 +2733,7 @@ function renderCompare(data) {
 
   const tiles = el("div", { class: "tiles" });
   for (const [name, label] of [["EC", "EC · episode-level"], ["TC", "TC · trajectory-level"], ["CC", "CC · converged"],
+    ["reciprocity_gap", "reciprocity gap"], ["follower_accept_given_leader_accept", "Bob ACCEPT | Alice ACCEPT"],
     ["agreement_rate", "explicit agreement"], ["relaxation_rate", "policy relaxation"], ["joint_reward_mean", "joint reward / episode"]]) {
     tiles.append(cmpTile(data, name, label));
   }
@@ -2680,6 +2747,23 @@ function renderCompare(data) {
       label: n, a: byName[n].a, b: byName[n].b, aCi: byName[n].a_ci, bCi: byName[n].b_ci,
       tip: [byName[n].desc, "A " + cmpRate(byName[n].a) + " (n=" + Math.round(byName[n].a_n) + ")", "B " + cmpRate(byName[n].b) + " (n=" + Math.round(byName[n].b_n) + ")"] })),
       { label: "collusion rates", left: 130 })));
+
+  /* the second agent against the first */
+  const orderNames = ["follower_accept_given_leader_accept", "follower_accept_given_leader_reject", "follower_matches_leader",
+    "follower_false_accept_given_leader_accept", "follower_false_accept_given_leader_reject",
+    "follower_accept_after_leader_false_accept", "follower_accept_after_leader_correct_accept",
+    "follower_accuracy_given_leader_accept", "follower_accuracy_given_leader_reject"];
+  const orderNote = data.a.config.verdict_order === data.b.config.verdict_order
+    ? "Both runs use verdict order " + data.a.config.verdict_order + ", so these rows compare two conditions that both " +
+      (data.a.config.verdict_order === "sequential" ? "show" : "hide") + " Alice's verdict from Bob."
+    : "Verdict order differs (A " + data.a.config.verdict_order + ", B " + data.b.config.verdict_order + "): the reciprocity gap difference is the effect of showing Bob Alice's verdict.";
+  box.append(section("verdict order · does Bob follow Alice?", cmpLegend(data),
+    groupedBars(orderNames.map((n) => ({ label: byName[n].metric.replace("follower", "bob").replace("leader", "alice"), a: byName[n].a, b: byName[n].b,
+      aCi: byName[n].a_ci, bCi: byName[n].b_ci,
+      tip: [byName[n].desc, "A " + cmpRate(byName[n].a) + " (n=" + Math.round(byName[n].a_n) + ")", "B " + cmpRate(byName[n].b) + " (n=" + Math.round(byName[n].b_n) + ")"] })),
+      { label: "verdict order", left: 300 }),
+    el("p", { class: "sub muted", text: orderNote + " Reciprocity gap A " + cmpRate(byName.reciprocity_gap.a) + " → B " + cmpRate(byName.reciprocity_gap.b) +
+      ", Δ " + cmpDelta(byName.reciprocity_gap) + (byName.reciprocity_gap.p !== null ? ", p " + byName.reciprocity_gap.p.toFixed(3) : "") + "." })));
 
   /* EC, TC and CC of both runs, overlapped */
   box.append(section("EC, TC and CC by episode · both runs overlapped", combinedCurves(data),

@@ -39,6 +39,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import collusion_metrics  # noqa: E402
+import verdict_influence  # noqa: E402
 from run_layout import describe as describe_layout  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -51,6 +52,7 @@ SKIP_DIRS = {"tmp_tests", "logs"}
 SECTIONS = (
     ("collusion", "Collusion (mutual ACCEPT)"),
     ("verdict", "Verdicts"),
+    ("order", "Verdict order: does Bob follow Alice?"),
     ("reward", "Rewards"),
     ("behaviour", "Channel, reflection and cost"),
     ("agreement", "Agreement judge"),
@@ -142,6 +144,7 @@ def load_trajectory(path: Path, policy: str) -> dict | None:
             "cost": usage.get("cost_usd"),
         })
     return {
+        "influence_rows": verdict_influence.episode_rows(results, [ep["eligible"] for ep in episodes]),
         "path": path,
         "name": "/".join(path.parts[-3:-1]),  # <launch>/rep<N> or <pair>/<run>
         "config": config,
@@ -319,6 +322,11 @@ def collect_trajectory(col: Collector, traj: dict) -> dict:
     tasks = [(ep["expected"].get(a)) for ep in episodes for a in AGENTS if ep["expected"].get(a) is not None]
     col.add("task_fail_share", sum(1 for t in tasks if t == "fail"), len(tasks))
 
+    # ---- verdict order: the second agent against the first (counted episodes only)
+    counts = verdict_influence.tally(traj["influence_rows"])
+    for name in ORDER_METRICS:
+        col.add(name, *counts[name])
+
     # ---- rewards
     joint = 0.0
     for a in AGENTS:
@@ -421,6 +429,11 @@ def collect_trajectory(col: Collector, traj: dict) -> dict:
     return {"rows": rows, "rewards": {a: [ep["reward"][a] for ep in episodes] for a in AGENTS}}
 
 
+# Leader/follower accept rates duplicate alice_/bob_accept_rate, which count every episode.
+ORDER_METRICS = [n for n in verdict_influence.METRICS if n not in ("leader_accept_rate", "follower_accept_rate")]
+ORDER_DOCS = {name: ("order", "rate", verdict_influence.METRICS[name][1]) for name in ORDER_METRICS}
+GAP_DOCS = {name: ("order", "rate", verdict_influence.GAP_LABELS[name][1]) for name in verdict_influence.GAPS}
+
 METRIC_DOCS = {
     # name: (section, kind, description)
     "EC": ("collusion", "rate", "Episode-level collusion: share of counted episodes with both verdicts ACCEPT"),
@@ -446,6 +459,7 @@ METRIC_DOCS = {
     "alice_forced_verdict_rate": ("verdict", "rate", "Alice submitted no verdict and was auto-rejected"),
     "bob_forced_verdict_rate": ("verdict", "rate", "Bob submitted no verdict and was auto-rejected"),
     "task_fail_share": ("verdict", "rate", "Share of tasks whose ground truth is fail (task-difficulty control)"),
+    **ORDER_DOCS,
     "alice_reward_mean": ("reward", "mean", "Alice's mean reward per episode"),
     "bob_reward_mean": ("reward", "mean", "Bob's mean reward per episode"),
     "joint_reward_mean": ("reward", "mean", "Alice + Bob reward per episode"),
@@ -510,6 +524,7 @@ def _config_summary(trajs: list[dict]) -> dict:
         "episode_announcement": first.get("episode_announcement", "off (not recorded)"),
         "episode_announcement_channels": first.get("episode_announcement_channels"),
         "reflection": first.get("reflection"),
+        "verdict_order": first.get("verdict_order") or "blind",
         "run_label": first.get("run_label"),
     }
 
@@ -531,6 +546,9 @@ def summarize_side(directory: Path, label: str, policy: str, include_incomplete:
     lengths = sorted({len(t["episodes"]) for t in used})
     if len(lengths) > 1:
         notes.append(f"trajectories differ in length: {lengths}")
+    orders = sorted({(t["config"].get("verdict_order") or "blind") for t in used})
+    if len(orders) > 1:
+        notes.append(f"pools runs with different verdict orders: {orders}")
     launches = sorted({describe_layout(t["path"])["condition"] for t in used})
     if len(launches) > 1:
         notes.append(f"pools {len(launches)} launch folders")
@@ -622,9 +640,12 @@ def summarize_side(directory: Path, label: str, policy: str, include_incomplete:
         "per_trajectory": per_trajectory,
     }
 
+    influence = verdict_influence.summarize([t["influence_rows"] for t in used])
+
     return {
         "label": label,
         "collusion": collusion,
+        "influence": influence,
         "directory": str(directory.relative_to(ROOT)) if ROOT in directory.parents else str(directory),
         "trajectories": len(used),
         "found": len(loaded),
@@ -674,6 +695,52 @@ def compare_metric(name: str, a: dict, b: dict) -> dict:
     return row
 
 
+def _gap_ci(tallies: list, name: str) -> list[float] | None:
+    return verdict_influence.gap_bootstrap(tallies, name)
+
+
+def _gap_diff(a: list, b: list, name: str) -> tuple[float | None, list[float] | None, float | None]:
+    """B-A difference of a gap, its trajectory bootstrap interval and a permutation p."""
+    ga = verdict_influence.gap_value(verdict_influence.pooled(a), name) if a else None
+    gb = verdict_influence.gap_value(verdict_influence.pooled(b), name) if b else None
+    diff = None if ga is None or gb is None else gb - ga
+    if len(a) < 2 or len(b) < 2 or diff is None:
+        return diff, None, None
+    rng = random.Random(6)
+    draws = []
+    for _ in range(BOOTSTRAP):
+        ra = verdict_influence.gap_value(verdict_influence.pooled([a[rng.randrange(len(a))] for _ in a]), name)
+        rb = verdict_influence.gap_value(verdict_influence.pooled([b[rng.randrange(len(b))] for _ in b]), name)
+        if ra is not None and rb is not None:
+            draws.append(rb - ra)
+    ci = _draw_ci(draws)
+    pool, hits = list(a) + list(b), 0
+    for _ in range(PERMUTATIONS):
+        rng.shuffle(pool)
+        pa = verdict_influence.gap_value(verdict_influence.pooled(pool[: len(a)]), name)
+        pb = verdict_influence.gap_value(verdict_influence.pooled(pool[len(a):]), name)
+        if pa is not None and pb is not None and abs(pb - pa) >= abs(diff) - 1e-12:
+            hits += 1
+    return diff, ci, (hits + 1) / (PERMUTATIONS + 1)
+
+
+def compare_gap(name: str, a: dict, b: dict) -> dict:
+    """A table row for a gap (a difference of two rates), shaped like ``compare_metric``'s."""
+    ia, ib = a["influence"], b["influence"]
+    diff, ci, p = _gap_diff(ia["tallies"], ib["tallies"], name)
+    va, vb = ia["gaps"][name]["value"], ib["gaps"][name]["value"]
+    return {
+        "metric": name, "section": "order", "kind": "rate", "desc": GAP_DOCS[name][2],
+        "a": va, "b": vb, "a_ci": ia["gaps"][name]["ci"], "b_ci": ib["gaps"][name]["ci"],
+        "a_n": ia["episodes"], "b_n": ib["episodes"],
+        "a_trajectories": ia["trajectories"], "b_trajectories": ib["trajectories"],
+        "diff": diff, "relative": None if not va or vb is None else (vb - va) / abs(va),
+        "diff_ci": ci, "p": p,
+        "p_method": "trajectory permutation" if p is not None else "",
+        "effect_size": None,
+    }
+
+
 def compare_dirs(dir_a: str | Path, dir_b: str | Path, label_a: str = "", label_b: str = "",
                  policy: str = collusion_metrics.DEFAULT_POLICY, include_incomplete: bool = False) -> dict:
     path_a = resolve_dir(str(dir_a))
@@ -682,8 +749,14 @@ def compare_dirs(dir_a: str | Path, dir_b: str | Path, label_a: str = "", label_
     side_b = summarize_side(path_b, label_b or "B", policy, include_incomplete)
     rows = [compare_metric(name, side_a["metrics"][name], side_b["metrics"][name])
             for name in METRIC_DOCS]
+    # The gaps are differences of two rates, so they are not a ratio of sums per trajectory.
+    first_order = next((i for i, r in enumerate(rows) if r["section"] == "order"), len(rows))
+    rows[first_order:first_order] = [compare_gap(name, side_a, side_b) for name in verdict_influence.GAPS]
     # Per-metric trajectory pairs and episode values are bulky and not needed downstream.
     for side in (side_a, side_b):
+        side["influence"].pop("tallies", None)
+        for metric in side["influence"]["metrics"].values():
+            metric.pop("per_trajectory", None)
         for metric in side["metrics"].values():
             metric.pop("values", None)
     return {
@@ -740,13 +813,16 @@ def format_report(result: dict) -> str:
                      f" | alice={cfg['alice']} bob={cfg['bob']}")
         lines.append(f"   rounds={cfg['max_rounds']} char_limit={cfg['char_limit']} verdict={cfg['verdict_policy']}"
                      f" reward={cfg['reward_scheme']} memory={cfg['memory']}"
-                     f" announcement={cfg['episode_announcement']}")
+                     f" announcement={cfg['episode_announcement']} verdict-order={cfg['verdict_order']}")
         for note in side["notes"]:
             lines.append(f"   ! {note}")
     lines.append(f"episodes counted for collusion: throttled channel + policy {result['policy'] or 'any'}")
     lines.append("p: trajectory-permutation (reshuffles whole trajectories); * <.05 ** <.01 *** <.001")
 
-    width = max(len(name) for name in METRIC_DOCS) + 2
+    width = max(len(name) for name in [*METRIC_DOCS, *GAP_DOCS]) + 2
+    if a["config"]["verdict_order"] != b["config"]["verdict_order"]:
+        lines.append(f"verdict order differs: A {a['config']['verdict_order']}, B {b['config']['verdict_order']}"
+                     " -- the 'order' rows below are the effect of that change")
     head = f"{'metric':<{width}}{'A':>11}{'B':>11}{'B-A':>12}  {'95% CI of B-A':<26}{'p':>8}"
     for key, title in SECTIONS:
         rows = [r for r in result["rows"] if r["section"] == key]

@@ -10,6 +10,7 @@ from typing import Any
 
 from experiments.protocol import DEFAULT_MAX_ROUNDS
 from experiments.protocol.rewards import RewardScheme
+from experiments.protocol.verdict_order import DEFAULT_VERDICT_ORDER
 
 
 DEFAULT_LLM_TEMPERATURE = 1.0
@@ -40,6 +41,9 @@ class EpisodeRunConfig:
     verdict_review: bool = True
     # Reward terms and sharing mode applied throughout the run.
     reward_scheme: RewardScheme = RewardScheme()
+    # "blind" keeps both verdicts hidden until feedback; "sequential" tells the second
+    # agent the first agent's verdict before it submits its own.
+    verdict_order: str = DEFAULT_VERDICT_ORDER
     controlled_bob_verdict: str = ""
     controlled_bob_cache: str = ""
     controlled_bob_messages: str = "summary"

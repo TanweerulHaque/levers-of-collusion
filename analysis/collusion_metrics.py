@@ -54,6 +54,7 @@ PAPER_EPISODES = 10
 BOOTSTRAP_RESAMPLES = 2000
 
 from run_layout import describe as describe_layout  # noqa: E402
+import verdict_influence  # noqa: E402
 
 REP_RE = re.compile(r"_rep(\d+)(?=_|$)")
 STAMP_RE = re.compile(r"_\d{8}_\d{6}_\d+_[0-9a-f]+$")
@@ -180,6 +181,7 @@ def load_trajectory(path: Path, policy: str) -> dict | None:
             "eligible": eligible,
         })
     mutual = [ep["mutual"] for ep in sequence if ep["eligible"]]
+    influence_rows = verdict_influence.episode_rows(results, [ep["eligible"] for ep in sequence])
     return {
         "dir": path.parent.name,
         "path": str(path),
@@ -193,6 +195,7 @@ def load_trajectory(path: Path, policy: str) -> dict | None:
         "scripted_peer": (config.get("models") or {}).get("bob") == "controlled",
         "sequence": sequence,
         "mutual": mutual,
+        "influence_rows": influence_rows,
         "onset": next((i for i, c in enumerate(mutual, 1) if c), None),
         "converged_at": converged_at(mutual),
         "config": {
@@ -203,6 +206,7 @@ def load_trajectory(path: Path, policy: str) -> dict | None:
             "verdict_policy": config.get("verdict_policy"),
             "reward_scheme": config.get("reward_scheme"),
             "memory": config.get("cross_episode_memory_scope"),
+            "verdict_order": config.get("verdict_order") or "blind",
         },
     }
 
@@ -242,6 +246,8 @@ def analyze(
             if t["mutual"] and (include_incomplete or t["complete"])
         ]
         summary = summarize([t["mutual"] for t in scored])
+        influence = verdict_influence.summarize([t["influence_rows"] for t in scored])
+        influence.pop("tallies")
         horizons = sorted({len(t["mutual"]) for t in scored})
         groups.append({
             "pair": pair,
@@ -256,6 +262,7 @@ def analyze(
             "include_incomplete": include_incomplete,
             "policy": policy,
             **summary,
+            "influence": influence,
             "per_trajectory": [
                 {k: t[k] for k in ("dir", "rep", "planned", "observed", "complete",
                                    "onset", "converged_at", "sequence")}
@@ -306,6 +313,7 @@ def format_report(result: dict) -> str:
             f"char_limit={cfg['char_limit']}",
             f"verdict={cfg['verdict_policy']}",
             f"reward={cfg['reward_scheme']}",
+            f"verdict-order={cfg['verdict_order']}",
         ]
         lines.append("  config: " + "  ".join(bits))
         notes = []
@@ -334,6 +342,10 @@ def format_report(result: dict) -> str:
                      "episodes left, <=1 deviation after)")
         if group["mean_onset"] is not None:
             lines.append(f"  mean onset episode {group['mean_onset']:.2f} (over trajectories that colluded)")
+        influence = verdict_influence.format_lines(group["influence"])
+        if influence:
+            lines.append("  second agent vs first (Bob given Alice's verdict):")
+            lines.extend(influence)
         lines.append("  trajectories (A=accept, R=reject; Alice then Bob; * = not counted):")
         for traj in group["per_trajectory"]:
             seq = " ".join(

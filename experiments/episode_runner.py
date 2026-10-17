@@ -45,6 +45,7 @@ from experiments.prompts.messages import (
     communication_round_tag,
     incoming_channel_message,
     peer_delivery_failure_notice,
+    peer_verdict_disclosure,
 )
 from experiments.prompts.system import initial_agent_messages
 from experiments.prompts.tasks import (
@@ -62,6 +63,7 @@ from experiments.protocol import (
     VERDICT_ATTEMPTS,
 )
 from experiments.protocol.rewards import episode_rewards, format_reward
+from experiments.protocol.verdict_order import DEFAULT_VERDICT_ORDER, sees_peer_verdict
 from experiments.protocol.state import (
     AGENT_IDS,
     agent_state,
@@ -759,7 +761,7 @@ def _open_verdict_phase(
     prepared: PreparedPair,
     runtimes: dict[str, AgentRuntime],
 ) -> None:
-    """Open the verdict phase for both agents after draining communication inboxes."""
+    """Open the verdict phase for the given agents after draining communication inboxes."""
     for agent_id, runtime in runtimes.items():
         runtime.messages.append(
             {
@@ -767,6 +769,34 @@ def _open_verdict_phase(
                 "content": prepared.agents[peer_id(agent_id)].verdict_prompt,
             }
         )
+
+
+def _disclose_peer_verdict(
+    *,
+    state: dict[str, Any],
+    runtime: AgentRuntime,
+    peer: str,
+) -> None:
+    """Show ``runtime``'s agent the verdict ``peer`` already submitted, and log it."""
+    submission = agent_state(state, peer)["verdict_submission"]
+    verdict = str(submission["verdict"])
+    runtime.messages.append(
+        {"role": "user", "content": peer_verdict_disclosure(peer, verdict)}
+    )
+    state["events"].append(
+        {
+            "event_id": len(state["events"]),
+            "round": state["round"],
+            "phase": state["phase"],
+            "actor": "runner",
+            "target": runtime.agent_id,
+            "tool": "disclose_peer_verdict",
+            "success": True,
+            "from": peer,
+            "verdict": verdict,
+            "forced": bool(submission.get("forced", False)),
+        }
+    )
 
 
 def _run_verdict_phase(
@@ -779,14 +809,21 @@ def _run_verdict_phase(
     reasoning_traces: list[dict[str, Any]],
     usage_records: list[dict[str, Any]],
 ) -> None:
-    """Collect both peer verdicts before scoring the episode."""
+    """Collect both peer verdicts before scoring the episode.
+
+    Blind (default): both agents are opened together and neither sees the other's
+    verdict. Sequential: an agent is opened only when its turn comes, and is first
+    shown the verdict of the agent before it, if ``sees_peer_verdict`` says so.
+    """
     set_phase(state, "verdict")
+    sequential = config.verdict_order != DEFAULT_VERDICT_ORDER
     active_runtimes = {
         actor: runtime
         for actor, runtime in runtimes.items()
         if not (actor == "bob" and config.controlled_bob_verdict)
     }
-    _open_verdict_phase(prepared=prepared, runtimes=active_runtimes)
+    if not sequential:
+        _open_verdict_phase(prepared=prepared, runtimes=active_runtimes)
     tool_choice = forced_tool_choice(prepared.task_type, "verdict")
     for agent_id in AGENT_IDS:
         runtime = runtimes[agent_id]
@@ -798,6 +835,12 @@ def _run_verdict_phase(
                 "Fixed controlled-peer verdict.",
             )
             continue
+        if sequential:
+            if sees_peer_verdict(config.verdict_order, agent_id):
+                _disclose_peer_verdict(
+                    state=state, runtime=runtime, peer=peer_id(agent_id)
+                )
+            _open_verdict_phase(prepared=prepared, runtimes={agent_id: runtime})
         log_progress(
             f"  Verdict phase: {agent_id} (episode={episode_id})", config.verbose
         )
@@ -987,6 +1030,7 @@ def run_one_episode(
                 max_rounds=config.max_rounds,
                 reward_objective=config.reward,
                 reward_scheme=config.reward_scheme,
+                verdict_order=config.verdict_order,
             )
             for agent_id in AGENT_IDS
         }

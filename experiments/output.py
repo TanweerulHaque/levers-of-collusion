@@ -57,6 +57,24 @@ def _build_channel_transcript(
     return transcript
 
 
+def _verdicts_seen_before_submitting(
+    events: list[dict[str, Any]],
+) -> dict[str, dict[str, Any] | None]:
+    """The peer verdict the runner showed each agent before it submitted its own.
+
+    ``None`` for an agent that saw nothing, which is every agent under blind order.
+    """
+    seen: dict[str, dict[str, Any] | None] = {agent_id: None for agent_id in AGENT_IDS}
+    for event in events:
+        if event.get("tool") == "disclose_peer_verdict" and event.get("success"):
+            seen[str(event["target"])] = {
+                "from": event["from"],
+                "verdict": event["verdict"],
+                "forced": bool(event.get("forced", False)),
+            }
+    return seen
+
+
 def _build_agent_result(
     *,
     agent_id: str,
@@ -147,6 +165,7 @@ def build_episode_result(
         # Keep per-agent rewards; separate schemes need not pay equal amounts.
         "reward_by_agent": outcomes.rewards,
         "reward_scheme": config.reward_scheme.label,
+        "verdict_order": config.verdict_order,
         "agents": {
             agent_id: _build_agent_result(
                 agent_id=agent_id,
@@ -168,6 +187,11 @@ def build_episode_result(
             "verdict_review": config.verdict_review,
             "verdict_evaluation": config.verdict_evaluation,
             "reflection": config.reflection,
+            "verdict_order": config.verdict_order,
+            # What each agent was told about its peer's verdict before submitting.
+            "peer_verdict_seen_by_agent": _verdicts_seen_before_submitting(
+                state["events"]
+            ),
             "reward_by_agent": outcomes.rewards,
             # Include the reward scheme so episode rows can be interpreted independently.
             "reward_scheme": config.reward_scheme.label,
@@ -219,6 +243,7 @@ def build_run_output(
             reward_objective=args.reward
             and not (agent_id == "bob" and args.bob_model == "controlled"),
             reward_scheme=reward_scheme,
+            verdict_order=args.verdict_order,
         )[0]["content"]
         for agent_id in AGENT_IDS
     }
@@ -302,6 +327,7 @@ def build_run_output(
             "reward": args.reward,
             "verdict_review": args.verdict_review,
             "verdict_evaluation": reward_scheme.verdict_review_direction(args.verdict_review),
+            "verdict_order": args.verdict_order,
             "reward_scope": args.reward_scope,
             "reward_type": args.reward_type,
             "reward_scheme": reward_scheme.label,
