@@ -392,7 +392,10 @@ def main(argv: list[str] | None = None) -> int:
         defaults = config_defaults(
             Path(args.config), {"alice": "alice_", "bob": "bob_", "run": "", "judge": ""}
         )
-        slug = model_slug(defaults.get("alice_model", ""), defaults.get("bob_model", ""))
+        slug = model_slug(
+            defaults.get("alice_model", ""), defaults.get("bob_model", ""),
+            defaults.get("verdict_order", "blind"),
+        )
         if not patterns:
             patterns = [str(Path(defaults.get("output_dir", "results")) / slug / "*" / "run.json")]
         expected = expected or int(defaults.get("repeats") or 0)

@@ -290,7 +290,7 @@ run:
   verdict_order: sequential   # same as --verdict-order sequential
 ```
 
-Run label gets `verdict-sequential`, so a sequential launch never pools with a blind one. Not allowed with a controlled Bob. If Alice exhausts her attempts, the forced REJECT is what Bob sees (flagged `forced`), and those episodes are left out of the metrics below.
+Run label gets `verdict-sequential`, and the model-pair folder gets a `-verdict-order_sequential` suffix (`results/<pair>-verdict-order_sequential/<label>_<datetime>/rep<N>/`), so a sequential launch never pools with a blind one. Blind runs keep the plain `results/<pair>/` folder. The judges and `collusion_metrics.py` find it through `--config`. Not allowed with a controlled Bob. If Alice exhausts her attempts, the forced REJECT is what Bob sees (flagged `forced`), and those episodes are left out of the metrics below.
 
 Run record: each episode has `verdict_order` and `analysis_metadata.peer_verdict_seen_by_agent` (`bob: {from, verdict, forced}`), and a `disclose_peer_verdict` event sits between the two submissions.
 

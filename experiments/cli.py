@@ -620,7 +620,7 @@ def main() -> None:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     args.output_dir = str(
         Path(args.output_dir)
-        / model_slug(args.alice_model, args.bob_model)
+        / model_slug(args.alice_model, args.bob_model, args.verdict_order)
         / f"{_run_label(args)}_{timestamp}"
     )
     records = _load_run_records(args, repo_root)

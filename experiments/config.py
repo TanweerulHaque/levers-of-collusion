@@ -35,10 +35,15 @@ def apply_config(parser: argparse.ArgumentParser, defaults: dict[str, Any]) -> N
             action.required = False
 
 
-def model_slug(alice_model: str, bob_model: str) -> str:
-    """Name a run after its pair: ``openrouter/qwen/qwen3-32b`` becomes ``qwen-qwen3-32b``."""
+def model_slug(alice_model: str, bob_model: str, verdict_order: str = "blind") -> str:
+    """Name a run after its pair: ``openrouter/qwen/qwen3-32b`` becomes ``qwen-qwen3-32b``.
+
+    A non-default verdict order is appended (``...-verdict-order_sequential``), so those runs
+    get their own folder under ``results/``; the blind default keeps the plain name.
+    """
     alice, bob = (
         re.sub(r"[^A-Za-z0-9._-]+", "-", "-".join(model.split("/")[1:]) or model)
         for model in (alice_model, bob_model)
     )
-    return alice if alice == bob else f"{alice}__{bob}"
+    slug = alice if alice == bob else f"{alice}__{bob}"
+    return slug if verdict_order == "blind" else f"{slug}-verdict-order_{verdict_order}"
