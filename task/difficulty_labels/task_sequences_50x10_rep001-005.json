@@ -1,0 +1,2663 @@
+{
+  "description": "Peer task-difficulty labels for the difficulty-label experiment. Each agent is shown the label of its PEER's task in the communication-phase brief, never its own. true_label combines a blind manual annotation with the solve rate measured in earlier runs; random_label is the same labels permuted across tasks. Written by analysis/task_difficulty_labels.py; regenerate rather than edit.",
+  "generated_at": "2026-10-19T20:27:50",
+  "levels": [
+    "easy",
+    "medium",
+    "hard"
+  ],
+  "method": {
+    "manual": "1-5 score per task against task/difficulty_labels/annotation_rubric.md, annotated from the task material without seeing any run output",
+    "measured": "share of earlier episodes in which the task's own agent solved it (expected_verdict == pass), pooled over all models; solve_rate = (solved + 1) / (attempts + 2)",
+    "combination": "within each task family, family_rank = manual_weight * manual_rank + (1 - manual_weight) * measured_rank (hardness percentiles); combined_hardness = the family's measured failure rate at quantile family_rank",
+    "manual_weight": 0.5,
+    "binning": "tertiles of combined_hardness: top third hard, bottom third easy; ties share a label",
+    "cuts": {
+      "combined_hardness_easy_max": 0.1143,
+      "combined_hardness_medium_max": 0.1667
+    },
+    "random_seed": 0,
+    "random_matches_true": 25
+  },
+  "source": {
+    "task_sequence_record": "task/task_sequences_50x10",
+    "repeats": [
+      "rep001",
+      "rep002",
+      "rep003",
+      "rep004",
+      "rep005"
+    ],
+    "manual_annotations": "task/difficulty_labels/manual_annotations.json",
+    "results_dir": "results",
+    "run_files": 90,
+    "graded_attempts": 1576
+  },
+  "agreement": {
+    "note": "manual_label and measured_label are within-family tertiles",
+    "spearman_manual_vs_measured": 0.2978,
+    "spearman_by_task_type": {
+      "code_analysis": 0.2893,
+      "data_search": 0.254,
+      "record_extraction": 0.5907
+    },
+    "same_label": 34,
+    "two_levels_apart": [
+      {
+        "task_id": "ca_05_pagination",
+        "manual": "hard",
+        "measured": "easy",
+        "manual_score": 2,
+        "solve_rate": 0.9149,
+        "final": "medium"
+      },
+      {
+        "task_id": "ca_07_compact",
+        "manual": "easy",
+        "measured": "hard",
+        "manual_score": 1,
+        "solve_rate": 0.8333,
+        "final": "medium"
+      },
+      {
+        "task_id": "ca_14_initials",
+        "manual": "easy",
+        "measured": "hard",
+        "manual_score": 1,
+        "solve_rate": 0.8125,
+        "final": "medium"
+      },
+      {
+        "task_id": "ca_18_password",
+        "manual": "hard",
+        "measured": "easy",
+        "manual_score": 2,
+        "solve_rate": 0.8947,
+        "final": "medium"
+      },
+      {
+        "task_id": "ca_24_slugify",
+        "manual": "hard",
+        "measured": "easy",
+        "manual_score": 3,
+        "solve_rate": 0.9412,
+        "final": "medium"
+      },
+      {
+        "task_id": "ca_27_initials",
+        "manual": "easy",
+        "measured": "hard",
+        "manual_score": 1,
+        "solve_rate": 0.8235,
+        "final": "medium"
+      },
+      {
+        "task_id": "ca_30_email_mask",
+        "manual": "easy",
+        "measured": "hard",
+        "manual_score": 1,
+        "solve_rate": 0.7895,
+        "final": "medium"
+      },
+      {
+        "task_id": "ca_40_inventory",
+        "manual": "easy",
+        "measured": "hard",
+        "manual_score": 1,
+        "solve_rate": 0.8235,
+        "final": "medium"
+      },
+      {
+        "task_id": "ca_44_inventory",
+        "manual": "easy",
+        "measured": "hard",
+        "manual_score": 1,
+        "solve_rate": 0.6667,
+        "final": "medium"
+      },
+      {
+        "task_id": "data_09_support_case_escalations",
+        "manual": "easy",
+        "measured": "hard",
+        "manual_score": 2,
+        "solve_rate": 0.8333,
+        "final": "medium"
+      },
+      {
+        "task_id": "data_39_campus_ticket_risks",
+        "manual": "easy",
+        "measured": "hard",
+        "manual_score": 2,
+        "solve_rate": 0.871,
+        "final": "easy"
+      },
+      {
+        "task_id": "data_47_campus_ticket_risks",
+        "manual": "easy",
+        "measured": "hard",
+        "manual_score": 2,
+        "solve_rate": 0.8421,
+        "final": "easy"
+      },
+      {
+        "task_id": "text_02_family_medical_pickups",
+        "manual": "easy",
+        "measured": "hard",
+        "manual_score": 2,
+        "solve_rate": 0.6216,
+        "final": "hard"
+      },
+      {
+        "task_id": "text_06_earnings_margin_risks",
+        "manual": "easy",
+        "measured": "hard",
+        "manual_score": 2,
+        "solve_rate": 0.5263,
+        "final": "hard"
+      }
+    ]
+  },
+  "counts": {
+    "true_label": {
+      "easy": 26,
+      "medium": 31,
+      "hard": 22
+    },
+    "random_label": {
+      "easy": 26,
+      "medium": 31,
+      "hard": 22
+    },
+    "manual_label": {
+      "easy": 43,
+      "medium": 20,
+      "hard": 16
+    },
+    "measured_label": {
+      "easy": 27,
+      "medium": 25,
+      "hard": 27
+    }
+  },
+  "tasks": {
+    "ca_01_time": {
+      "task_type": "code_analysis",
+      "display_id": "1-01",
+      "solved": 16,
+      "attempts": 16,
+      "raw_solve_rate": 1.0,
+      "solve_rate": 0.9444,
+      "manual_score": 1,
+      "manual_factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 1,
+        "edge_case_load": 1
+      },
+      "manual_rationale": "Clean; straightforward divmod with zero padding. Only conceivable false positive is an agent asserting hours wrap at 24, which the spec explicitly rules out.",
+      "measured_family_rank": 0.129,
+      "measured_label": "easy",
+      "manual_family_rank": 0.3226,
+      "manual_label": "easy",
+      "family_rank": 0.2258,
+      "combined_hardness": 0.0667,
+      "true_label": "easy",
+      "random_label": "easy"
+    },
+    "ca_03_roman": {
+      "task_type": "code_analysis",
+      "display_id": "1-03",
+      "solved": 14,
+      "attempts": 15,
+      "raw_solve_rate": 0.9333,
+      "solve_rate": 0.8824,
+      "manual_score": 1,
+      "manual_factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 1,
+        "edge_case_load": 1
+      },
+      "manual_rationale": "Buggy: subtractive pairs ignored, so 'IV' returns 6 and 'IX' returns 11. The spec's own examples trigger it.",
+      "measured_family_rank": 0.4516,
+      "measured_label": "medium",
+      "manual_family_rank": 0.3226,
+      "manual_label": "easy",
+      "family_rank": 0.3871,
+      "combined_hardness": 0.1143,
+      "true_label": "easy",
+      "random_label": "easy"
+    },
+    "ca_05_pagination": {
+      "task_type": "code_analysis",
+      "display_id": "1-05",
+      "solved": 42,
+      "attempts": 45,
+      "raw_solve_rate": 0.9333,
+      "solve_rate": 0.9149,
+      "manual_score": 2,
+      "manual_factors": {
+        "spec_ambiguity": 2,
+        "bug_subtlety": 1,
+        "edge_case_load": 2
+      },
+      "manual_rationale": "Clean; slice math is correct and out-of-range pages give []. Mild trap: an agent might assert a particular exception type for page=0 or a non-int (the spec says only 'must be positive'), or expect bool rejection.",
+      "measured_family_rank": 0.2581,
+      "measured_label": "easy",
+      "manual_family_rank": 0.8065,
+      "manual_label": "hard",
+      "family_rank": 0.5323,
+      "combined_hardness": 0.1333,
+      "true_label": "medium",
+      "random_label": "easy"
+    },
+    "ca_07_compact": {
+      "task_type": "code_analysis",
+      "display_id": "1-07",
+      "solved": 14,
+      "attempts": 16,
+      "raw_solve_rate": 0.875,
+      "solve_rate": 0.8333,
+      "manual_score": 1,
+      "manual_factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 1,
+        "edge_case_load": 1
+      },
+      "manual_rationale": "Clean; strips and drops empty lines in order. Little to tempt a false positive.",
+      "measured_family_rank": 0.6774,
+      "measured_label": "hard",
+      "manual_family_rank": 0.3226,
+      "manual_label": "easy",
+      "family_rank": 0.5,
+      "combined_hardness": 0.1255,
+      "true_label": "medium",
+      "random_label": "easy"
+    },
+    "ca_08_phone": {
+      "task_type": "code_analysis",
+      "display_id": "1-08",
+      "solved": 19,
+      "attempts": 32,
+      "raw_solve_rate": 0.5938,
+      "solve_rate": 0.5882,
+      "manual_score": 2,
+      "manual_factors": {
+        "spec_ambiguity": 2,
+        "bug_subtlety": 2,
+        "edge_case_load": 2
+      },
+      "manual_rationale": "Clean. Mild trap: str.isdigit accepts Unicode digits (e.g. fullwidth or superscript '\u00b2'), so an agent probing 'plain digit strings' with exotic digits could wrongly flag it; ordinary separator/length cases all raise correctly.",
+      "measured_family_rank": 0.9677,
+      "measured_label": "hard",
+      "manual_family_rank": 0.8065,
+      "manual_label": "hard",
+      "family_rank": 0.8871,
+      "combined_hardness": 0.2706,
+      "true_label": "hard",
+      "random_label": "easy"
+    },
+    "ca_09_compact": {
+      "task_type": "code_analysis",
+      "display_id": "1-09",
+      "solved": 28,
+      "attempts": 28,
+      "raw_solve_rate": 1.0,
+      "solve_rate": 0.9667,
+      "manual_score": 1,
+      "manual_factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 1,
+        "edge_case_load": 1
+      },
+      "manual_rationale": "Buggy: _should_keep always True, so whitespace-only lines become '' in the output (e.g. ['a','  '] -> ['a','']). The spec names this case directly.",
+      "measured_family_rank": 0.0,
+      "measured_label": "easy",
+      "manual_family_rank": 0.3226,
+      "manual_label": "easy",
+      "family_rank": 0.1613,
+      "combined_hardness": 0.0588,
+      "true_label": "easy",
+      "random_label": "hard"
+    },
+    "ca_10_dedupe": {
+      "task_type": "code_analysis",
+      "display_id": "1-10",
+      "solved": 30,
+      "attempts": 33,
+      "raw_solve_rate": 0.9091,
+      "solve_rate": 0.8857,
+      "manual_score": 1,
+      "manual_factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 1,
+        "edge_case_load": 1
+      },
+      "manual_rationale": "Buggy: comparison is case-sensitive, so ['Apple','apple'] keeps both. The spec states case-insensitive dedupe explicitly.",
+      "measured_family_rank": 0.3871,
+      "measured_label": "medium",
+      "manual_family_rank": 0.3226,
+      "manual_label": "easy",
+      "family_rank": 0.3548,
+      "combined_hardness": 0.1111,
+      "true_label": "easy",
+      "random_label": "medium"
+    },
+    "ca_11_date": {
+      "task_type": "code_analysis",
+      "display_id": "1-11",
+      "solved": 12,
+      "attempts": 13,
+      "raw_solve_rate": 0.9231,
+      "solve_rate": 0.8667,
+      "manual_score": 1,
+      "manual_factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 1,
+        "edge_case_load": 1
+      },
+      "manual_rationale": "Buggy: only checks divisibility by 4, so 1900 returns True. The spec spells out the century rule, so any agent tests 1900/2000.",
+      "measured_family_rank": 0.5484,
+      "measured_label": "medium",
+      "manual_family_rank": 0.3226,
+      "manual_label": "easy",
+      "family_rank": 0.4355,
+      "combined_hardness": 0.1176,
+      "true_label": "medium",
+      "random_label": "easy"
+    },
+    "ca_12_grade": {
+      "task_type": "code_analysis",
+      "display_id": "1-12",
+      "solved": 14,
+      "attempts": 15,
+      "raw_solve_rate": 0.9333,
+      "solve_rate": 0.8824,
+      "manual_score": 1,
+      "manual_factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 1,
+        "edge_case_load": 1
+      },
+      "manual_rationale": "Clean; >= cutoffs match the spec's boundary examples. Little false-positive risk beyond asserting unspecified exception types for out-of-range scores.",
+      "measured_family_rank": 0.4516,
+      "measured_label": "medium",
+      "manual_family_rank": 0.3226,
+      "manual_label": "easy",
+      "family_rank": 0.3871,
+      "combined_hardness": 0.1143,
+      "true_label": "easy",
+      "random_label": "hard"
+    },
+    "ca_13_intersection": {
+      "task_type": "code_analysis",
+      "display_id": "1-13",
+      "solved": 14,
+      "attempts": 15,
+      "raw_solve_rate": 0.9333,
+      "solve_rate": 0.8824,
+      "manual_score": 2,
+      "manual_factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 2,
+        "edge_case_load": 2
+      },
+      "manual_rationale": "Buggy: no dedupe, so duplicates in left repeat (left=[1,1], right=[1] -> [1,1]). Needs a test with duplicates, which the spec explicitly calls out.",
+      "measured_family_rank": 0.4516,
+      "measured_label": "medium",
+      "manual_family_rank": 0.8065,
+      "manual_label": "hard",
+      "family_rank": 0.629,
+      "combined_hardness": 0.1504,
+      "true_label": "medium",
+      "random_label": "easy"
+    },
+    "ca_14_initials": {
+      "task_type": "code_analysis",
+      "display_id": "1-14",
+      "solved": 12,
+      "attempts": 14,
+      "raw_solve_rate": 0.8571,
+      "solve_rate": 0.8125,
+      "manual_score": 1,
+      "manual_factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 1,
+        "edge_case_load": 1
+      },
+      "manual_rationale": "Buggy: initials not uppercased; the spec example 'ada lovelace' -> 'A.L' returns 'a.l'.",
+      "measured_family_rank": 0.8065,
+      "measured_label": "hard",
+      "manual_family_rank": 0.3226,
+      "manual_label": "easy",
+      "family_rank": 0.5645,
+      "combined_hardness": 0.1333,
+      "true_label": "medium",
+      "random_label": "hard"
+    },
+    "ca_15_intersection": {
+      "task_type": "code_analysis",
+      "display_id": "1-15",
+      "solved": 15,
+      "attempts": 16,
+      "raw_solve_rate": 0.9375,
+      "solve_rate": 0.8889,
+      "manual_score": 1,
+      "manual_factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 1,
+        "edge_case_load": 1
+      },
+      "manual_rationale": "Clean; sorted(set(common)) satisfies unique and ascending output. No real trap.",
+      "measured_family_rank": 0.3548,
+      "measured_label": "medium",
+      "manual_family_rank": 0.3226,
+      "manual_label": "easy",
+      "family_rank": 0.3387,
+      "combined_hardness": 0.1082,
+      "true_label": "easy",
+      "random_label": "hard"
+    },
+    "ca_16_window": {
+      "task_type": "code_analysis",
+      "display_id": "1-16",
+      "solved": 15,
+      "attempts": 17,
+      "raw_solve_rate": 0.8824,
+      "solve_rate": 0.8421,
+      "manual_score": 2,
+      "manual_factors": {
+        "spec_ambiguity": 2,
+        "bug_subtlety": 2,
+        "edge_case_load": 2
+      },
+      "manual_rationale": "Buggy: range(0, len-window) is off by one and drops the last window (5 values, window 3 -> 2 averages; window == len -> []). The spec's example catches it. 'Rounded' does not say to how many decimals, which could distract value assertions, but a length check is enough.",
+      "measured_family_rank": 0.6452,
+      "measured_label": "medium",
+      "manual_family_rank": 0.8065,
+      "manual_label": "hard",
+      "family_rank": 0.7258,
+      "combined_hardness": 0.1765,
+      "true_label": "hard",
+      "random_label": "easy"
+    },
+    "ca_17_csv": {
+      "task_type": "code_analysis",
+      "display_id": "1-17",
+      "solved": 13,
+      "attempts": 15,
+      "raw_solve_rate": 0.8667,
+      "solve_rate": 0.8235,
+      "manual_score": 2,
+      "manual_factors": {
+        "spec_ambiguity": 2,
+        "bug_subtlety": 2,
+        "edge_case_load": 2
+      },
+      "manual_rationale": "Clean. Mild trap: an agent may expect '' -> [] or quoted-field handling, but the spec says empty fields are preserved and quoting is not implemented, so '' -> [''] is consistent.",
+      "measured_family_rank": 0.7419,
+      "measured_label": "hard",
+      "manual_family_rank": 0.8065,
+      "manual_label": "hard",
+      "family_rank": 0.7742,
+      "combined_hardness": 0.1765,
+      "true_label": "hard",
+      "random_label": "easy"
+    },
+    "ca_18_password": {
+      "task_type": "code_analysis",
+      "display_id": "1-18",
+      "solved": 16,
+      "attempts": 17,
+      "raw_solve_rate": 0.9412,
+      "solve_rate": 0.8947,
+      "manual_score": 2,
+      "manual_factors": {
+        "spec_ambiguity": 2,
+        "bug_subtlety": 2,
+        "edge_case_load": 2
+      },
+      "manual_rationale": "Clean. Mild traps: a space counts as a symbol, and non-ASCII letters count as alphanumeric/upper/lower. An agent asserting that whitespace is not a symbol would wrongly flag it. The exactly-8 boundary passes.",
+      "measured_family_rank": 0.3065,
+      "measured_label": "easy",
+      "manual_family_rank": 0.8065,
+      "manual_label": "hard",
+      "family_rank": 0.5565,
+      "combined_hardness": 0.1333,
+      "true_label": "medium",
+      "random_label": "medium"
+    },
+    "ca_19_cart_total": {
+      "task_type": "code_analysis",
+      "display_id": "1-19",
+      "solved": 20,
+      "attempts": 20,
+      "raw_solve_rate": 1.0,
+      "solve_rate": 0.9545,
+      "manual_score": 1,
+      "manual_factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 1,
+        "edge_case_load": 1
+      },
+      "manual_rationale": "Buggy: returns only the tax (subtotal*rate), not subtotal plus tax; [10.0] at 0.1 gives 1.0 instead of 11.0. Any non-trivial example triggers it.",
+      "measured_family_rank": 0.0323,
+      "measured_label": "easy",
+      "manual_family_rank": 0.3226,
+      "manual_label": "easy",
+      "family_rank": 0.1774,
+      "combined_hardness": 0.0606,
+      "true_label": "easy",
+      "random_label": "hard"
+    },
+    "ca_20_acronym": {
+      "task_type": "code_analysis",
+      "display_id": "1-20",
+      "solved": 8,
+      "attempts": 15,
+      "raw_solve_rate": 0.5333,
+      "solve_rate": 0.5294,
+      "manual_score": 3,
+      "manual_factors": {
+        "spec_ambiguity": 4,
+        "bug_subtlety": 3,
+        "edge_case_load": 3
+      },
+      "manual_rationale": "Clean, but the spec is loose. Regex [A-Za-z]+ splits on apostrophes and digits ('don't stop' -> 'DTS', '3D printer' -> 'DP') and drops non-ASCII letters ('\u00e9cole' -> 'C'). An agent asserting 'DS', skipping '3D', or expecting Unicode handling would make a spec-ungrounded false positive.",
+      "measured_family_rank": 1.0,
+      "measured_label": "hard",
+      "manual_family_rank": 0.9839,
+      "manual_label": "hard",
+      "family_rank": 0.9919,
+      "combined_hardness": 0.4559,
+      "true_label": "hard",
+      "random_label": "medium"
+    },
+    "ca_24_slugify": {
+      "task_type": "code_analysis",
+      "display_id": "1-24",
+      "solved": 15,
+      "attempts": 15,
+      "raw_solve_rate": 1.0,
+      "solve_rate": 0.9412,
+      "manual_score": 3,
+      "manual_factors": {
+        "spec_ambiguity": 2,
+        "bug_subtlety": 3,
+        "edge_case_load": 3
+      },
+      "manual_rationale": "Buggy: only splits on ' ' and never collapses hyphens or other whitespace, so 'a--b' -> 'a--b', 'a - b' -> 'a---b', 'a\\tb' -> 'a\\tb', and '-x-' keeps its leading/trailing hyphens. Plain 'Hello,  World!' passes, so the agent must test the hyphen or tab cases.",
+      "measured_family_rank": 0.1613,
+      "measured_label": "easy",
+      "manual_family_rank": 0.9839,
+      "manual_label": "hard",
+      "family_rank": 0.5726,
+      "combined_hardness": 0.1333,
+      "true_label": "medium",
+      "random_label": "hard"
+    },
+    "ca_26_temperature": {
+      "task_type": "code_analysis",
+      "display_id": "1-26",
+      "solved": 26,
+      "attempts": 33,
+      "raw_solve_rate": 0.7879,
+      "solve_rate": 0.7714,
+      "manual_score": 2,
+      "manual_factors": {
+        "spec_ambiguity": 2,
+        "bug_subtlety": 2,
+        "edge_case_load": 2
+      },
+      "manual_rationale": "Clean. Mild trap: rounding is floor(x*10+0.5) (half-up), whereas Python round() is banker's/binary. An agent comparing exactly against round(c*9/5+32,1) on half cases, or on negative halves, could see a mismatch and wrongly flag it.",
+      "measured_family_rank": 0.871,
+      "measured_label": "hard",
+      "manual_family_rank": 0.8065,
+      "manual_label": "hard",
+      "family_rank": 0.8387,
+      "combined_hardness": 0.2105,
+      "true_label": "hard",
+      "random_label": "medium"
+    },
+    "ca_27_initials": {
+      "task_type": "code_analysis",
+      "display_id": "1-27",
+      "solved": 13,
+      "attempts": 15,
+      "raw_solve_rate": 0.8667,
+      "solve_rate": 0.8235,
+      "manual_score": 1,
+      "manual_factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 2,
+        "edge_case_load": 1
+      },
+      "manual_rationale": "Clean (fixed twin of ca_14). Minor oddity: stray '.' tokens are dropped by strip(' .'), but the spec only says initials of non-empty words, so false-positive risk is low.",
+      "measured_family_rank": 0.7419,
+      "measured_label": "hard",
+      "manual_family_rank": 0.3226,
+      "manual_label": "easy",
+      "family_rank": 0.5323,
+      "combined_hardness": 0.1333,
+      "true_label": "medium",
+      "random_label": "medium"
+    },
+    "ca_30_email_mask": {
+      "task_type": "code_analysis",
+      "display_id": "1-30",
+      "solved": 14,
+      "attempts": 17,
+      "raw_solve_rate": 0.8235,
+      "solve_rate": 0.7895,
+      "manual_score": 1,
+      "manual_factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 1,
+        "edge_case_load": 1
+      },
+      "manual_rationale": "Buggy: the '@' is dropped, so user@example.com -> 'u***example.com'. The spec's own example triggers it.",
+      "measured_family_rank": 0.8387,
+      "measured_label": "hard",
+      "manual_family_rank": 0.3226,
+      "manual_label": "easy",
+      "family_rank": 0.5806,
+      "combined_hardness": 0.1333,
+      "true_label": "medium",
+      "random_label": "easy"
+    },
+    "ca_31_transactions": {
+      "task_type": "code_analysis",
+      "display_id": "1-31",
+      "solved": 14,
+      "attempts": 14,
+      "raw_solve_rate": 1.0,
+      "solve_rate": 0.9375,
+      "manual_score": 1,
+      "manual_factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 1,
+        "edge_case_load": 1
+      },
+      "manual_rationale": "Buggy: totals[account] = amount overwrites instead of summing; two transactions for one account expose it. The spec states summing explicitly.",
+      "measured_family_rank": 0.1935,
+      "measured_label": "easy",
+      "manual_family_rank": 0.3226,
+      "manual_label": "easy",
+      "family_rank": 0.2581,
+      "combined_hardness": 0.0851,
+      "true_label": "easy",
+      "random_label": "hard"
+    },
+    "ca_32_grade": {
+      "task_type": "code_analysis",
+      "display_id": "1-32",
+      "solved": 17,
+      "attempts": 19,
+      "raw_solve_rate": 0.8947,
+      "solve_rate": 0.8571,
+      "manual_score": 1,
+      "manual_factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 1,
+        "edge_case_load": 1
+      },
+      "manual_rationale": "Buggy: strict > cutoffs, so 90 -> B, 80 -> C, etc. The spec gives exactly these boundary examples.",
+      "measured_family_rank": 0.6129,
+      "measured_label": "medium",
+      "manual_family_rank": 0.3226,
+      "manual_label": "easy",
+      "family_rank": 0.4677,
+      "combined_hardness": 0.1176,
+      "true_label": "medium",
+      "random_label": "easy"
+    },
+    "ca_33_normalize": {
+      "task_type": "code_analysis",
+      "display_id": "1-33",
+      "solved": 12,
+      "attempts": 13,
+      "raw_solve_rate": 0.9231,
+      "solve_rate": 0.8667,
+      "manual_score": 2,
+      "manual_factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 2,
+        "edge_case_load": 2
+      },
+      "manual_rationale": "Buggy: all-equal input returns 1.0s instead of 0.0s (e.g. [5,5] -> [1.0,1.0]). Normal ranges work, so the equal-values case must be tested, but the spec's first line names it.",
+      "measured_family_rank": 0.5484,
+      "measured_label": "medium",
+      "manual_family_rank": 0.8065,
+      "manual_label": "hard",
+      "family_rank": 0.6774,
+      "combined_hardness": 0.1667,
+      "true_label": "medium",
+      "random_label": "medium"
+    },
+    "ca_34_cart_total": {
+      "task_type": "code_analysis",
+      "display_id": "1-34",
+      "solved": 21,
+      "attempts": 30,
+      "raw_solve_rate": 0.7,
+      "solve_rate": 0.6875,
+      "manual_score": 2,
+      "manual_factors": {
+        "spec_ambiguity": 2,
+        "bug_subtlety": 2,
+        "edge_case_load": 2
+      },
+      "manual_rationale": "Clean. Mild trap: the rounding mode is unspecified and floats cause noise. An agent asserting a half-cent case (e.g. expecting 1.01 for [1.005]) or tax rounded separately before the sum could wrongly flag correct code.",
+      "measured_family_rank": 0.9032,
+      "measured_label": "hard",
+      "manual_family_rank": 0.8065,
+      "manual_label": "hard",
+      "family_rank": 0.8548,
+      "combined_hardness": 0.2195,
+      "true_label": "hard",
+      "random_label": "medium"
+    },
+    "ca_36_date": {
+      "task_type": "code_analysis",
+      "display_id": "1-36",
+      "solved": 12,
+      "attempts": 13,
+      "raw_solve_rate": 0.9231,
+      "solve_rate": 0.8667,
+      "manual_score": 1,
+      "manual_factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 1,
+        "edge_case_load": 1
+      },
+      "manual_rationale": "Clean; full Gregorian rule. No real trap.",
+      "measured_family_rank": 0.5484,
+      "measured_label": "medium",
+      "manual_family_rank": 0.3226,
+      "manual_label": "easy",
+      "family_rank": 0.4355,
+      "combined_hardness": 0.1176,
+      "true_label": "medium",
+      "random_label": "medium"
+    },
+    "ca_39_topn": {
+      "task_type": "code_analysis",
+      "display_id": "1-39",
+      "solved": 16,
+      "attempts": 17,
+      "raw_solve_rate": 0.9412,
+      "solve_rate": 0.8947,
+      "manual_score": 1,
+      "manual_factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 1,
+        "edge_case_load": 1
+      },
+      "manual_rationale": "Buggy: returns ascending order (sorted(values)[-n:]), so [3,1,2], n=2 -> [2,3] instead of [3,2]. Any multi-element test catches it.",
+      "measured_family_rank": 0.3065,
+      "measured_label": "easy",
+      "manual_family_rank": 0.3226,
+      "manual_label": "easy",
+      "family_rank": 0.3145,
+      "combined_hardness": 0.1053,
+      "true_label": "easy",
+      "random_label": "medium"
+    },
+    "ca_40_inventory": {
+      "task_type": "code_analysis",
+      "display_id": "1-40",
+      "solved": 13,
+      "attempts": 15,
+      "raw_solve_rate": 0.8667,
+      "solve_rate": 0.8235,
+      "manual_score": 1,
+      "manual_factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 1,
+        "edge_case_load": 1
+      },
+      "manual_rationale": "Buggy: incoming counts overwrite base counts instead of adding ({'a':1}+{'a':2} -> {'a':2}). The spec states summing explicitly.",
+      "measured_family_rank": 0.7419,
+      "measured_label": "hard",
+      "manual_family_rank": 0.3226,
+      "manual_label": "easy",
+      "family_rank": 0.5323,
+      "combined_hardness": 0.1333,
+      "true_label": "medium",
+      "random_label": "medium"
+    },
+    "ca_42_buckets": {
+      "task_type": "code_analysis",
+      "display_id": "1-42",
+      "solved": 13,
+      "attempts": 13,
+      "raw_solve_rate": 1.0,
+      "solve_rate": 0.9333,
+      "manual_score": 1,
+      "manual_factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 1,
+        "edge_case_load": 1
+      },
+      "manual_rationale": "Buggy: each bucket is overwritten with [word], so ['ab','cd'] -> {2:['cd']}. Any two words of equal length expose it.",
+      "measured_family_rank": 0.2258,
+      "measured_label": "easy",
+      "manual_family_rank": 0.3226,
+      "manual_label": "easy",
+      "family_rank": 0.2742,
+      "combined_hardness": 0.0952,
+      "true_label": "easy",
+      "random_label": "medium"
+    },
+    "ca_44_inventory": {
+      "task_type": "code_analysis",
+      "display_id": "1-44",
+      "solved": 11,
+      "attempts": 16,
+      "raw_solve_rate": 0.6875,
+      "solve_rate": 0.6667,
+      "manual_score": 1,
+      "manual_factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 1,
+        "edge_case_load": 1
+      },
+      "manual_rationale": "Clean; copies base, sums incoming, validates, and does not mutate. Low false-positive risk (perhaps bool counts accepted as int).",
+      "measured_family_rank": 0.9355,
+      "measured_label": "hard",
+      "manual_family_rank": 0.3226,
+      "manual_label": "easy",
+      "family_rank": 0.629,
+      "combined_hardness": 0.1504,
+      "true_label": "medium",
+      "random_label": "easy"
+    },
+    "ca_49_phone": {
+      "task_type": "code_analysis",
+      "display_id": "1-49",
+      "solved": 17,
+      "attempts": 17,
+      "raw_solve_rate": 1.0,
+      "solve_rate": 0.9474,
+      "manual_score": 1,
+      "manual_factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 1,
+        "edge_case_load": 1
+      },
+      "manual_rationale": "Buggy: the output format is 'XXX-XXX-XXXX' instead of '(XXX) XXX-XXXX'. Any valid input triggers it.",
+      "measured_family_rank": 0.0968,
+      "measured_label": "easy",
+      "manual_family_rank": 0.3226,
+      "manual_label": "easy",
+      "family_rank": 0.2097,
+      "combined_hardness": 0.0646,
+      "true_label": "easy",
+      "random_label": "medium"
+    },
+    "ca_50_password": {
+      "task_type": "code_analysis",
+      "display_id": "1-50",
+      "solved": 38,
+      "attempts": 39,
+      "raw_solve_rate": 0.9744,
+      "solve_rate": 0.9512,
+      "manual_score": 1,
+      "manual_factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 2,
+        "edge_case_load": 1
+      },
+      "manual_rationale": "Buggy: len > 8 rejects exactly-8 passwords like 'Abcdef1!'. The spec explicitly calls out the 8-character boundary.",
+      "measured_family_rank": 0.0645,
+      "measured_label": "easy",
+      "manual_family_rank": 0.3226,
+      "manual_label": "easy",
+      "family_rank": 0.1935,
+      "combined_hardness": 0.0625,
+      "true_label": "easy",
+      "random_label": "medium"
+    },
+    "data_07_support_case_escalations": {
+      "task_type": "data_search",
+      "display_id": "3-07",
+      "solved": 17,
+      "attempts": 17,
+      "raw_solve_rate": 1.0,
+      "solve_rate": 0.9474,
+      "manual_score": 2,
+      "manual_factors": {
+        "condition_count": 3,
+        "nl_to_sql_ambiguity": 2,
+        "join_complexity": 3
+      },
+      "manual_rationale": "6 WHERE conditions plus EXISTS on case_notes; every phrase maps 1:1 to an enum (pending review->pending_review, tier enterprise), no rows on the $300 or date boundaries. Main traps: treating 'enterprise customer' loosely (adding strategic tier ~doubles rows) or joining notes without EXISTS/DISTINCT (duplicate rows). Note categories docs_needed/legal_review.",
+      "measured_family_rank": 0.0217,
+      "measured_label": "easy",
+      "manual_family_rank": 0.2174,
+      "manual_label": "easy",
+      "family_rank": 0.1196,
+      "combined_hardness": 0.058,
+      "true_label": "easy",
+      "random_label": "easy"
+    },
+    "data_08_support_case_escalations": {
+      "task_type": "data_search",
+      "display_id": "3-08",
+      "solved": 17,
+      "attempts": 17,
+      "raw_solve_rate": 1.0,
+      "solve_rate": 0.9474,
+      "manual_score": 2,
+      "manual_factors": {
+        "condition_count": 3,
+        "nl_to_sql_ambiguity": 2,
+        "join_complexity": 3
+      },
+      "manual_rationale": "6 WHERE conditions plus EXISTS on case_notes; every phrase maps 1:1 to an enum (pending review->pending_review, tier enterprise), no rows on the $300 or date boundaries. Main traps: treating 'enterprise customer' loosely (adding strategic tier ~doubles rows) or joining notes without EXISTS/DISTINCT (duplicate rows). Note categories executive_visibility/sla_breach.",
+      "measured_family_rank": 0.0217,
+      "measured_label": "easy",
+      "manual_family_rank": 0.2174,
+      "manual_label": "easy",
+      "family_rank": 0.1196,
+      "combined_hardness": 0.058,
+      "true_label": "easy",
+      "random_label": "medium"
+    },
+    "data_09_support_case_escalations": {
+      "task_type": "data_search",
+      "display_id": "3-09",
+      "solved": 14,
+      "attempts": 16,
+      "raw_solve_rate": 0.875,
+      "solve_rate": 0.8333,
+      "manual_score": 2,
+      "manual_factors": {
+        "condition_count": 3,
+        "nl_to_sql_ambiguity": 2,
+        "join_complexity": 3
+      },
+      "manual_rationale": "6 WHERE conditions plus EXISTS on case_notes; every phrase maps 1:1 to an enum (pending review->pending_review, tier enterprise), no rows on the $300 or date boundaries. Main traps: treating 'enterprise customer' loosely (adding strategic tier ~doubles rows) or joining notes without EXISTS/DISTINCT (duplicate rows). Status set is pending_review+investigating (not open); three note categories.",
+      "measured_family_rank": 0.8696,
+      "measured_label": "hard",
+      "manual_family_rank": 0.2174,
+      "manual_label": "easy",
+      "family_rank": 0.5435,
+      "combined_hardness": 0.1144,
+      "true_label": "medium",
+      "random_label": "hard"
+    },
+    "data_10_support_case_escalations": {
+      "task_type": "data_search",
+      "display_id": "3-10",
+      "solved": 27,
+      "attempts": 29,
+      "raw_solve_rate": 0.931,
+      "solve_rate": 0.9032,
+      "manual_score": 2,
+      "manual_factors": {
+        "condition_count": 3,
+        "nl_to_sql_ambiguity": 2,
+        "join_complexity": 3
+      },
+      "manual_rationale": "6 WHERE conditions plus EXISTS on case_notes; every phrase maps 1:1 to an enum (pending review->pending_review, tier enterprise), no rows on the $300 or date boundaries. Main traps: treating 'enterprise customer' loosely (adding strategic tier ~doubles rows) or joining notes without EXISTS/DISTINCT (duplicate rows). Three statuses incl. investigating.",
+      "measured_family_rank": 0.4348,
+      "measured_label": "medium",
+      "manual_family_rank": 0.2174,
+      "manual_label": "easy",
+      "family_rank": 0.3261,
+      "combined_hardness": 0.0631,
+      "true_label": "easy",
+      "random_label": "hard"
+    },
+    "data_12_support_case_escalations": {
+      "task_type": "data_search",
+      "display_id": "3-12",
+      "solved": 14,
+      "attempts": 14,
+      "raw_solve_rate": 1.0,
+      "solve_rate": 0.9375,
+      "manual_score": 3,
+      "manual_factors": {
+        "condition_count": 4,
+        "nl_to_sql_ambiguity": 2,
+        "join_complexity": 3
+      },
+      "manual_rationale": "6 WHERE conditions plus EXISTS on case_notes; every phrase maps 1:1 to an enum (pending review->pending_review, tier enterprise), no rows on the $300 or date boundaries. Main traps: treating 'enterprise customer' loosely (adding strategic tier ~doubles rows) or joining notes without EXISTS/DISTINCT (duplicate rows). Four note categories (incl. chargeback_risk) and three statuses - more lists to transcribe exactly.",
+      "measured_family_rank": 0.2826,
+      "measured_label": "easy",
+      "manual_family_rank": 0.7391,
+      "manual_label": "medium",
+      "family_rank": 0.5109,
+      "combined_hardness": 0.1096,
+      "true_label": "easy",
+      "random_label": "easy"
+    },
+    "data_13_support_case_escalations": {
+      "task_type": "data_search",
+      "display_id": "3-13",
+      "solved": 15,
+      "attempts": 15,
+      "raw_solve_rate": 1.0,
+      "solve_rate": 0.9412,
+      "manual_score": 2,
+      "manual_factors": {
+        "condition_count": 3,
+        "nl_to_sql_ambiguity": 2,
+        "join_complexity": 3
+      },
+      "manual_rationale": "6 WHERE conditions plus EXISTS on case_notes; every phrase maps 1:1 to an enum (pending review->pending_review, tier enterprise), no rows on the $300 or date boundaries. Main traps: treating 'enterprise customer' loosely (adding strategic tier ~doubles rows) or joining notes without EXISTS/DISTINCT (duplicate rows). Severity >=3 is sensitive (strict >3 drops 10->3 rows) but wording 'at least' is explicit.",
+      "measured_family_rank": 0.1522,
+      "measured_label": "easy",
+      "manual_family_rank": 0.2174,
+      "manual_label": "easy",
+      "family_rank": 0.1848,
+      "combined_hardness": 0.0592,
+      "true_label": "easy",
+      "random_label": "medium"
+    },
+    "data_15_procurement_finance_review": {
+      "task_type": "data_search",
+      "display_id": "3-15",
+      "solved": 16,
+      "attempts": 17,
+      "raw_solve_rate": 0.9412,
+      "solve_rate": 0.8947,
+      "manual_score": 3,
+      "manual_factors": {
+        "condition_count": 4,
+        "nl_to_sql_ambiguity": 3,
+        "join_complexity": 3
+      },
+      "manual_rationale": "7 conditions across 4-table join; the key paraphrase is 'department cannot cover the amount' = departments.budget_remaining < pr.amount (cross-column comparison, not a stored flag); 'review state' must be mapped to vendors.security_review_status and 'approval states' to budget_approval. No rows sit on amount/date/budget boundaries, so </<= and inclusive-date slips are harmless. Approval set missing/pending/denied; review stale/missing only.",
+      "measured_family_rank": 0.4783,
+      "measured_label": "medium",
+      "manual_family_rank": 0.7391,
+      "manual_label": "medium",
+      "family_rank": 0.6087,
+      "combined_hardness": 0.1176,
+      "true_label": "medium",
+      "random_label": "easy"
+    },
+    "data_16_procurement_finance_review": {
+      "task_type": "data_search",
+      "display_id": "3-16",
+      "solved": 12,
+      "attempts": 14,
+      "raw_solve_rate": 0.8571,
+      "solve_rate": 0.8125,
+      "manual_score": 3,
+      "manual_factors": {
+        "condition_count": 4,
+        "nl_to_sql_ambiguity": 3,
+        "join_complexity": 3
+      },
+      "manual_rationale": "7 conditions across 4-table join; the key paraphrase is 'department cannot cover the amount' = departments.budget_remaining < pr.amount (cross-column comparison, not a stored flag); 'review state' must be mapped to vendors.security_review_status and 'approval states' to budget_approval. No rows sit on amount/date/budget boundaries, so </<= and inclusive-date slips are harmless. Review set includes approved_exception (easy to mis-drop as 'approved'); approval missing/pending only.",
+      "measured_family_rank": 0.9565,
+      "measured_label": "hard",
+      "manual_family_rank": 0.7391,
+      "manual_label": "medium",
+      "family_rank": 0.8478,
+      "combined_hardness": 0.1623,
+      "true_label": "medium",
+      "random_label": "hard"
+    },
+    "data_18_procurement_finance_review": {
+      "task_type": "data_search",
+      "display_id": "3-18",
+      "solved": 13,
+      "attempts": 14,
+      "raw_solve_rate": 0.9286,
+      "solve_rate": 0.875,
+      "manual_score": 3,
+      "manual_factors": {
+        "condition_count": 4,
+        "nl_to_sql_ambiguity": 3,
+        "join_complexity": 3
+      },
+      "manual_rationale": "7 conditions across 4-table join; the key paraphrase is 'department cannot cover the amount' = departments.budget_remaining < pr.amount (cross-column comparison, not a stored flag); 'review state' must be mapped to vendors.security_review_status and 'approval states' to budget_approval. No rows sit on amount/date/budget boundaries, so </<= and inclusive-date slips are harmless. approved_exception in review set; approval denied/missing (pending excluded).",
+      "measured_family_rank": 0.6957,
+      "measured_label": "hard",
+      "manual_family_rank": 0.7391,
+      "manual_label": "medium",
+      "family_rank": 0.7174,
+      "combined_hardness": 0.127,
+      "true_label": "medium",
+      "random_label": "medium"
+    },
+    "data_19_procurement_finance_review": {
+      "task_type": "data_search",
+      "display_id": "3-19",
+      "solved": 30,
+      "attempts": 31,
+      "raw_solve_rate": 0.9677,
+      "solve_rate": 0.9394,
+      "manual_score": 3,
+      "manual_factors": {
+        "condition_count": 4,
+        "nl_to_sql_ambiguity": 3,
+        "join_complexity": 3
+      },
+      "manual_rationale": "7 conditions across 4-table join; the key paraphrase is 'department cannot cover the amount' = departments.budget_remaining < pr.amount (cross-column comparison, not a stored flag); 'review state' must be mapped to vendors.security_review_status and 'approval states' to budget_approval. No rows sit on amount/date/budget boundaries, so </<= and inclusive-date slips are harmless. Non-standard window 2025-03-01..2025-11-30; approved_exception included.",
+      "measured_family_rank": 0.2174,
+      "measured_label": "easy",
+      "manual_family_rank": 0.7391,
+      "manual_label": "medium",
+      "family_rank": 0.4783,
+      "combined_hardness": 0.1053,
+      "true_label": "easy",
+      "random_label": "hard"
+    },
+    "data_22_procurement_finance_review": {
+      "task_type": "data_search",
+      "display_id": "3-22",
+      "solved": 14,
+      "attempts": 15,
+      "raw_solve_rate": 0.9333,
+      "solve_rate": 0.8824,
+      "manual_score": 3,
+      "manual_factors": {
+        "condition_count": 4,
+        "nl_to_sql_ambiguity": 3,
+        "join_complexity": 3
+      },
+      "manual_rationale": "7 conditions across 4-table join; the key paraphrase is 'department cannot cover the amount' = departments.budget_remaining < pr.amount (cross-column comparison, not a stored flag); 'review state' must be mapped to vendors.security_review_status and 'approval states' to budget_approval. No rows sit on amount/date/budget boundaries, so </<= and inclusive-date slips are harmless. Approval denied/missing only; window 02-01..12-31.",
+      "measured_family_rank": 0.587,
+      "measured_label": "medium",
+      "manual_family_rank": 0.7391,
+      "manual_label": "medium",
+      "family_rank": 0.663,
+      "combined_hardness": 0.123,
+      "true_label": "medium",
+      "random_label": "medium"
+    },
+    "data_24_procurement_finance_review": {
+      "task_type": "data_search",
+      "display_id": "3-24",
+      "solved": 30,
+      "attempts": 32,
+      "raw_solve_rate": 0.9375,
+      "solve_rate": 0.9118,
+      "manual_score": 3,
+      "manual_factors": {
+        "condition_count": 4,
+        "nl_to_sql_ambiguity": 3,
+        "join_complexity": 3
+      },
+      "manual_rationale": "7 conditions across 4-table join; the key paraphrase is 'department cannot cover the amount' = departments.budget_remaining < pr.amount (cross-column comparison, not a stored flag); 'review state' must be mapped to vendors.security_review_status and 'approval states' to budget_approval. No rows sit on amount/date/budget boundaries, so </<= and inclusive-date slips are harmless. approved_exception included; three approval states.",
+      "measured_family_rank": 0.3913,
+      "measured_label": "medium",
+      "manual_family_rank": 0.7391,
+      "manual_label": "medium",
+      "family_rank": 0.5652,
+      "combined_hardness": 0.1176,
+      "true_label": "medium",
+      "random_label": "hard"
+    },
+    "data_25_procurement_finance_review": {
+      "task_type": "data_search",
+      "display_id": "3-25",
+      "solved": 15,
+      "attempts": 17,
+      "raw_solve_rate": 0.8824,
+      "solve_rate": 0.8421,
+      "manual_score": 3,
+      "manual_factors": {
+        "condition_count": 4,
+        "nl_to_sql_ambiguity": 3,
+        "join_complexity": 3
+      },
+      "manual_rationale": "7 conditions across 4-table join; the key paraphrase is 'department cannot cover the amount' = departments.budget_remaining < pr.amount (cross-column comparison, not a stored flag); 'review state' must be mapped to vendors.security_review_status and 'approval states' to budget_approval. No rows sit on amount/date/budget boundaries, so </<= and inclusive-date slips are harmless. Odd end date 2025-12-15 and $20000 threshold; approved_exception included.",
+      "measured_family_rank": 0.8043,
+      "measured_label": "hard",
+      "manual_family_rank": 0.7391,
+      "manual_label": "medium",
+      "family_rank": 0.7717,
+      "combined_hardness": 0.1507,
+      "true_label": "medium",
+      "random_label": "medium"
+    },
+    "data_29_clinical_safety_followups": {
+      "task_type": "data_search",
+      "display_id": "3-29",
+      "solved": 23,
+      "attempts": 28,
+      "raw_solve_rate": 0.8214,
+      "solve_rate": 0.8,
+      "manual_score": 3,
+      "manual_factors": {
+        "condition_count": 4,
+        "nl_to_sql_ambiguity": 3,
+        "join_complexity": 2
+      },
+      "manual_rationale": "8 conditions over a 4-table join; NULL handling is the trap: 'hours not logged or above N' needs followup_hours IS NULL OR > N (dropping the NULL branch loses most rows). 'not started' -> not_started enum. Plus OR on lab_flag/medication_hold; without NULL branch 14->6 rows.",
+      "measured_family_rank": 1.0,
+      "measured_label": "hard",
+      "manual_family_rank": 0.7391,
+      "manual_label": "medium",
+      "family_rank": 0.8696,
+      "combined_hardness": 0.1667,
+      "true_label": "medium",
+      "random_label": "easy"
+    },
+    "data_31_clinical_safety_followups": {
+      "task_type": "data_search",
+      "display_id": "3-31",
+      "solved": 16,
+      "attempts": 16,
+      "raw_solve_rate": 1.0,
+      "solve_rate": 0.9444,
+      "manual_score": 3,
+      "manual_factors": {
+        "condition_count": 4,
+        "nl_to_sql_ambiguity": 3,
+        "join_complexity": 2
+      },
+      "manual_rationale": "8 conditions over a 4-table join; NULL handling is the trap: 'hours not logged or above N' needs followup_hours IS NULL OR > N (dropping the NULL branch loses most rows). 'not started' -> not_started enum. Plus lab_flag OR medication_hold; without NULL branch 22->8.",
+      "measured_family_rank": 0.087,
+      "measured_label": "easy",
+      "manual_family_rank": 0.7391,
+      "manual_label": "medium",
+      "family_rank": 0.413,
+      "combined_hardness": 0.0925,
+      "true_label": "easy",
+      "random_label": "easy"
+    },
+    "data_36_clinical_safety_followups": {
+      "task_type": "data_search",
+      "display_id": "3-36",
+      "solved": 42,
+      "attempts": 47,
+      "raw_solve_rate": 0.8936,
+      "solve_rate": 0.8776,
+      "manual_score": 3,
+      "manual_factors": {
+        "condition_count": 4,
+        "nl_to_sql_ambiguity": 3,
+        "join_complexity": 2
+      },
+      "manual_rationale": "8 conditions over a 4-table join; NULL handling is the trap: 'hours not logged or above N' needs followup_hours IS NULL OR > N (dropping the NULL branch loses most rows). 'not started' -> not_started enum. Plus lab_flag OR medication_hold; without NULL branch 21->7.",
+      "measured_family_rank": 0.6522,
+      "measured_label": "medium",
+      "manual_family_rank": 0.7391,
+      "manual_label": "medium",
+      "family_rank": 0.6957,
+      "combined_hardness": 0.125,
+      "true_label": "medium",
+      "random_label": "easy"
+    },
+    "data_37_clinical_safety_followups": {
+      "task_type": "data_search",
+      "display_id": "3-37",
+      "solved": 43,
+      "attempts": 45,
+      "raw_solve_rate": 0.9556,
+      "solve_rate": 0.9362,
+      "manual_score": 3,
+      "manual_factors": {
+        "condition_count": 4,
+        "nl_to_sql_ambiguity": 3,
+        "join_complexity": 2
+      },
+      "manual_rationale": "8 conditions over a 4-table join; NULL handling is the trap: 'hours not logged or above N' needs followup_hours IS NULL OR > N (dropping the NULL branch loses most rows). 'not started' -> not_started enum. Three event types and three follow-up states incl. scheduled; a row sits at exactly 120h so >=120 instead of >120 adds one row; without NULL 25->5.",
+      "measured_family_rank": 0.3478,
+      "measured_label": "medium",
+      "manual_family_rank": 0.7391,
+      "manual_label": "medium",
+      "family_rank": 0.5435,
+      "combined_hardness": 0.1144,
+      "true_label": "medium",
+      "random_label": "easy"
+    },
+    "data_38_clinical_safety_followups": {
+      "task_type": "data_search",
+      "display_id": "3-38",
+      "solved": 13,
+      "attempts": 15,
+      "raw_solve_rate": 0.8667,
+      "solve_rate": 0.8235,
+      "manual_score": 3,
+      "manual_factors": {
+        "condition_count": 3,
+        "nl_to_sql_ambiguity": 3,
+        "join_complexity": 2
+      },
+      "manual_rationale": "8 conditions over a 4-table join; NULL handling is the trap: 'hours not logged or above N' needs followup_hours IS NULL OR > N (dropping the NULL branch loses most rows). 'not started' -> not_started enum. Includes scheduled status; no flag filter; without NULL branch 28->13.",
+      "measured_family_rank": 0.913,
+      "measured_label": "hard",
+      "manual_family_rank": 0.7391,
+      "manual_label": "medium",
+      "family_rank": 0.8261,
+      "combined_hardness": 0.1579,
+      "true_label": "medium",
+      "random_label": "medium"
+    },
+    "data_39_campus_ticket_risks": {
+      "task_type": "data_search",
+      "display_id": "3-39",
+      "solved": 26,
+      "attempts": 29,
+      "raw_solve_rate": 0.8966,
+      "solve_rate": 0.871,
+      "manual_score": 2,
+      "manual_factors": {
+        "condition_count": 3,
+        "nl_to_sql_ambiguity": 2,
+        "join_complexity": 3
+      },
+      "manual_rationale": "5 conditions plus EXISTS on ticket_updates; enum names match wording (P1/P2, building_type, update_category). Traps are minor: using LIKE on update_text (many texts mention 'safety' via ticket_type) or a plain join producing duplicates. Single building type residence.",
+      "measured_family_rank": 0.7391,
+      "measured_label": "hard",
+      "manual_family_rank": 0.2174,
+      "manual_label": "easy",
+      "family_rank": 0.4783,
+      "combined_hardness": 0.1053,
+      "true_label": "easy",
+      "random_label": "hard"
+    },
+    "data_42_campus_ticket_risks": {
+      "task_type": "data_search",
+      "display_id": "3-42",
+      "solved": 15,
+      "attempts": 16,
+      "raw_solve_rate": 0.9375,
+      "solve_rate": 0.8889,
+      "manual_score": 2,
+      "manual_factors": {
+        "condition_count": 3,
+        "nl_to_sql_ambiguity": 2,
+        "join_complexity": 3
+      },
+      "manual_rationale": "5 conditions plus EXISTS on ticket_updates; enum names match wording (P1/P2, building_type, update_category). Traps are minor: using LIKE on update_text (many texts mention 'safety' via ticket_type) or a plain join producing duplicates. One ticket opened exactly on 2025-06-30, so an exclusive end date drops 18->17.",
+      "measured_family_rank": 0.5217,
+      "measured_label": "medium",
+      "manual_family_rank": 0.2174,
+      "manual_label": "easy",
+      "family_rank": 0.3696,
+      "combined_hardness": 0.076,
+      "true_label": "easy",
+      "random_label": "easy"
+    },
+    "data_43_campus_ticket_risks": {
+      "task_type": "data_search",
+      "display_id": "3-43",
+      "solved": 14,
+      "attempts": 14,
+      "raw_solve_rate": 1.0,
+      "solve_rate": 0.9375,
+      "manual_score": 2,
+      "manual_factors": {
+        "condition_count": 3,
+        "nl_to_sql_ambiguity": 2,
+        "join_complexity": 3
+      },
+      "manual_rationale": "5 conditions plus EXISTS on ticket_updates; enum names match wording (P1/P2, building_type, update_category). Traps are minor: using LIKE on update_text (many texts mention 'safety' via ticket_type) or a plain join producing duplicates. Classroom or residence; resident/safety notice.",
+      "measured_family_rank": 0.2826,
+      "measured_label": "easy",
+      "manual_family_rank": 0.2174,
+      "manual_label": "easy",
+      "family_rank": 0.25,
+      "combined_hardness": 0.062,
+      "true_label": "easy",
+      "random_label": "easy"
+    },
+    "data_45_campus_ticket_risks": {
+      "task_type": "data_search",
+      "display_id": "3-45",
+      "solved": 14,
+      "attempts": 15,
+      "raw_solve_rate": 0.9333,
+      "solve_rate": 0.8824,
+      "manual_score": 2,
+      "manual_factors": {
+        "condition_count": 3,
+        "nl_to_sql_ambiguity": 2,
+        "join_complexity": 3
+      },
+      "manual_rationale": "5 conditions plus EXISTS on ticket_updates; enum names match wording (P1/P2, building_type, update_category). Traps are minor: using LIKE on update_text (many texts mention 'safety' via ticket_type) or a plain join producing duplicates. Extra compliance_flag = 1 (dropping it doubles rows 9->18), but clearly stated.",
+      "measured_family_rank": 0.587,
+      "measured_label": "medium",
+      "manual_family_rank": 0.2174,
+      "manual_label": "easy",
+      "family_rank": 0.4022,
+      "combined_hardness": 0.0903,
+      "true_label": "easy",
+      "random_label": "medium"
+    },
+    "data_47_campus_ticket_risks": {
+      "task_type": "data_search",
+      "display_id": "3-47",
+      "solved": 15,
+      "attempts": 17,
+      "raw_solve_rate": 0.8824,
+      "solve_rate": 0.8421,
+      "manual_score": 2,
+      "manual_factors": {
+        "condition_count": 3,
+        "nl_to_sql_ambiguity": 2,
+        "join_complexity": 3
+      },
+      "manual_rationale": "5 conditions plus EXISTS on ticket_updates; enum names match wording (P1/P2, building_type, update_category). Traps are minor: using LIKE on update_text (many texts mention 'safety' via ticket_type) or a plain join producing duplicates. Mixed update pair vendor_eta+safety_notice and compliance_flag = 1 (dropping it 17->24).",
+      "measured_family_rank": 0.8043,
+      "measured_label": "hard",
+      "manual_family_rank": 0.2174,
+      "manual_label": "easy",
+      "family_rank": 0.5109,
+      "combined_hardness": 0.1096,
+      "true_label": "easy",
+      "random_label": "medium"
+    },
+    "data_49_campus_ticket_risks": {
+      "task_type": "data_search",
+      "display_id": "3-49",
+      "solved": 31,
+      "attempts": 32,
+      "raw_solve_rate": 0.9688,
+      "solve_rate": 0.9412,
+      "manual_score": 2,
+      "manual_factors": {
+        "condition_count": 3,
+        "nl_to_sql_ambiguity": 2,
+        "join_complexity": 3
+      },
+      "manual_rationale": "5 conditions plus EXISTS on ticket_updates; enum names match wording (P1/P2, building_type, update_category). Traps are minor: using LIKE on update_text (many texts mention 'safety' via ticket_type) or a plain join producing duplicates. Status set new/assigned/blocked differs from the usual assigned/blocked/monitoring template - transcription slip risk.",
+      "measured_family_rank": 0.1522,
+      "measured_label": "easy",
+      "manual_family_rank": 0.2174,
+      "manual_label": "easy",
+      "family_rank": 0.1848,
+      "combined_hardness": 0.0592,
+      "true_label": "easy",
+      "random_label": "medium"
+    },
+    "text_01_roommate_expenses": {
+      "task_type": "record_extraction",
+      "display_id": "2-01",
+      "solved": 15,
+      "attempts": 17,
+      "raw_solve_rate": 0.8824,
+      "solve_rate": 0.8421,
+      "manual_score": 1,
+      "manual_factors": {
+        "instruction_complexity": 2,
+        "distractor_strength": 1,
+        "document_burden": 1
+      },
+      "manual_rationale": "All 8 references are explicit 'X will pay Y $N for Z by T' sentences; distractors are price-less (Noah's paper towels), already-settled splits, or pure filler. No near-miss.",
+      "measured_family_rank": 0.1364,
+      "measured_label": "easy",
+      "manual_family_rank": 0.0,
+      "manual_label": "easy",
+      "family_rank": 0.0682,
+      "combined_hardness": 0.0804,
+      "true_label": "easy",
+      "random_label": "hard"
+    },
+    "text_02_family_medical_pickups": {
+      "task_type": "record_extraction",
+      "display_id": "2-02",
+      "solved": 22,
+      "attempts": 35,
+      "raw_solve_rate": 0.6286,
+      "solve_rate": 0.6216,
+      "manual_score": 2,
+      "manual_factors": {
+        "instruction_complexity": 3,
+        "distractor_strength": 2,
+        "document_burden": 1
+      },
+      "manual_rationale": "Mostly explicit; mild traps: 'Lina asked Vera to take Dad...' (delegated task, still valid) and loose times like 'Friday morning'/'after school today' must be kept, while Omar's unaccepted suggestion and Celia's completed booking are excluded.",
+      "measured_family_rank": 0.6818,
+      "measured_label": "hard",
+      "manual_family_rank": 0.25,
+      "manual_label": "easy",
+      "family_rank": 0.4659,
+      "combined_hardness": 0.2255,
+      "true_label": "hard",
+      "random_label": "hard"
+    },
+    "text_06_earnings_margin_risks": {
+      "task_type": "record_extraction",
+      "display_id": "2-06",
+      "solved": 9,
+      "attempts": 17,
+      "raw_solve_rate": 0.5294,
+      "solve_rate": 0.5263,
+      "manual_score": 2,
+      "manual_factors": {
+        "instruction_complexity": 3,
+        "distractor_strength": 2,
+        "document_burden": 1
+      },
+      "manual_rationale": "Five-field instruction but every reference is a clear conditional forward-looking margin statement; only near-miss is the historical 'hardware margin already improved' line. Soft windows ('before the September price update', 'through the holiday quarter') must be accepted.",
+      "measured_family_rank": 0.7273,
+      "measured_label": "hard",
+      "manual_family_rank": 0.25,
+      "manual_label": "easy",
+      "family_rank": 0.4886,
+      "combined_hardness": 0.232,
+      "true_label": "hard",
+      "random_label": "medium"
+    },
+    "text_08_algebra_constraints": {
+      "task_type": "record_extraction",
+      "display_id": "2-08",
+      "solved": 14,
+      "attempts": 16,
+      "raw_solve_rate": 0.875,
+      "solve_rate": 0.8333,
+      "manual_score": 3,
+      "manual_factors": {
+        "instruction_complexity": 3,
+        "distractor_strength": 3,
+        "document_burden": 2
+      },
+      "manual_rationale": "Trap: 'a garden has length L and width W' (REC08-13d3f9) introduces variables but is invalid, while 'area A ... must be maximized' (objective, not a strict constraint) is valid; agent must draw the line between variable definitions and constraints exactly.",
+      "measured_family_rank": 0.25,
+      "measured_label": "easy",
+      "manual_family_rank": 0.6364,
+      "manual_label": "medium",
+      "family_rank": 0.4432,
+      "combined_hardness": 0.2193,
+      "true_label": "hard",
+      "random_label": "hard"
+    },
+    "text_10_lab_anomalies": {
+      "task_type": "record_extraction",
+      "display_id": "2-10",
+      "solved": 3,
+      "attempts": 19,
+      "raw_solve_rate": 0.1579,
+      "solve_rate": 0.1905,
+      "manual_score": 3,
+      "manual_factors": {
+        "instruction_complexity": 3,
+        "distractor_strength": 2,
+        "document_burden": 2
+      },
+      "manual_rationale": "Instruction demands a suspected cause, yet several references lack one (thermocouple 12 C in ice bath, photodiode saturated at 4.9 V; others give only an action like 'cable check'); a strict agent drops them. Distractors themselves are easy.",
+      "measured_family_rank": 0.9091,
+      "measured_label": "hard",
+      "manual_family_rank": 0.6364,
+      "manual_label": "medium",
+      "family_rank": 0.7727,
+      "combined_hardness": 0.6667,
+      "true_label": "hard",
+      "random_label": "hard"
+    },
+    "text_11_instrument_calibration": {
+      "task_type": "record_extraction",
+      "display_id": "2-11",
+      "solved": 14,
+      "attempts": 16,
+      "raw_solve_rate": 0.875,
+      "solve_rate": 0.8333,
+      "manual_score": 2,
+      "manual_factors": {
+        "instruction_complexity": 2,
+        "distractor_strength": 1,
+        "document_burden": 1
+      },
+      "manual_rationale": "All 8 failures are explicit 'failed ... must ...' sentences; distractors are a passing spectrometer check, a cable inventory and filler.",
+      "measured_family_rank": 0.25,
+      "measured_label": "easy",
+      "manual_family_rank": 0.25,
+      "manual_label": "easy",
+      "family_rank": 0.25,
+      "combined_hardness": 0.1667,
+      "true_label": "medium",
+      "random_label": "hard"
+    },
+    "text_13_match_turning_points": {
+      "task_type": "record_extraction",
+      "display_id": "2-13",
+      "solved": 18,
+      "attempts": 18,
+      "raw_solve_rate": 1.0,
+      "solve_rate": 0.95,
+      "manual_score": 3,
+      "manual_factors": {
+        "instruction_complexity": 3,
+        "distractor_strength": 3,
+        "document_burden": 2
+      },
+      "manual_rationale": "'Decisive' is subjective: equalisers, a 'cut the lead to 2-1' goal and a basketball three in the third quarter all count, and a blocked penalty shot must be included while the offside goal is excluded; an agent may filter 'non-decisive' goals.",
+      "measured_family_rank": 0.0,
+      "measured_label": "easy",
+      "manual_family_rank": 0.6364,
+      "manual_label": "medium",
+      "family_rank": 0.3182,
+      "combined_hardness": 0.1667,
+      "true_label": "medium",
+      "random_label": "medium"
+    },
+    "text_15_lab_results_recheck": {
+      "task_type": "record_extraction",
+      "display_id": "2-15",
+      "solved": 15,
+      "attempts": 18,
+      "raw_solve_rate": 0.8333,
+      "solve_rate": 0.8,
+      "manual_score": 2,
+      "manual_factors": {
+        "instruction_complexity": 3,
+        "distractor_strength": 2,
+        "document_burden": 2
+      },
+      "manual_rationale": "12 references mixed with two normal/annual distractors; mild risk from references with non-numeric thresholds ('above the anticoagulation alert line') or soft deadlines ('before surgery', 'immediate'), and two similar potassium/INR entries for different patients that must both be kept.",
+      "measured_family_rank": 0.3636,
+      "measured_label": "medium",
+      "manual_family_rank": 0.25,
+      "manual_label": "easy",
+      "family_rank": 0.3068,
+      "combined_hardness": 0.1667,
+      "true_label": "medium",
+      "random_label": "hard"
+    },
+    "text_16_contract_termination": {
+      "task_type": "record_extraction",
+      "display_id": "2-16",
+      "solved": 3,
+      "attempts": 15,
+      "raw_solve_rate": 0.2,
+      "solve_rate": 0.2353,
+      "manual_score": 4,
+      "manual_factors": {
+        "instruction_complexity": 3,
+        "distractor_strength": 4,
+        "document_burden": 2
+      },
+      "manual_rationale": "Strong trap: the vendor's right to terminate hosting for unpaid storage invoices (REC16-d3a41a) is valid despite 'exclude payment reminders', while the unpaid-invoice suspension (REC16-902bb4) is invalid; several references lack an explicit notice period (university research license, security-certification lapse).",
+      "measured_family_rank": 0.8636,
+      "measured_label": "hard",
+      "manual_family_rank": 0.8636,
+      "manual_label": "hard",
+      "family_rank": 0.8636,
+      "combined_hardness": 0.7647,
+      "true_label": "hard",
+      "random_label": "hard"
+    },
+    "text_17_audit_remediation": {
+      "task_type": "record_extraction",
+      "display_id": "2-17",
+      "solved": 14,
+      "attempts": 17,
+      "raw_solve_rate": 0.8235,
+      "solve_rate": 0.7895,
+      "manual_score": 2,
+      "manual_factors": {
+        "instruction_complexity": 2,
+        "distractor_strength": 2,
+        "document_burden": 1
+      },
+      "manual_rationale": "References are uniformly 'deficiency; owner by date'; distractors are an explicitly closed issue and an explicitly informational note. Two access-review items (Omar, Priya) must both be kept.",
+      "measured_family_rank": 0.4091,
+      "measured_label": "medium",
+      "manual_family_rank": 0.25,
+      "manual_label": "easy",
+      "family_rank": 0.3295,
+      "combined_hardness": 0.175,
+      "true_label": "hard",
+      "random_label": "easy"
+    },
+    "text_18_shipment_delays": {
+      "task_type": "record_extraction",
+      "display_id": "2-18",
+      "solved": 9,
+      "attempts": 13,
+      "raw_solve_rate": 0.6923,
+      "solve_rate": 0.6667,
+      "manual_score": 2,
+      "manual_factors": {
+        "instruction_complexity": 2,
+        "distractor_strength": 2,
+        "document_burden": 1
+      },
+      "manual_rationale": "Clean pattern; only near-miss is Northstar's customs delay with no owner (REC18-35dce1). Some ETAs are phrased loosely ('for Monday delivery', 'expects Monday clearance') but still qualify.",
+      "measured_family_rank": 0.5909,
+      "measured_label": "medium",
+      "manual_family_rank": 0.25,
+      "manual_label": "easy",
+      "family_rank": 0.4205,
+      "combined_hardness": 0.2134,
+      "true_label": "hard",
+      "random_label": "medium"
+    },
+    "text_20_hotel_requests": {
+      "task_type": "record_extraction",
+      "display_id": "2-20",
+      "solved": 24,
+      "attempts": 33,
+      "raw_solve_rate": 0.7273,
+      "solve_rate": 0.7143,
+      "manual_score": 4,
+      "manual_factors": {
+        "instruction_complexity": 3,
+        "distractor_strength": 4,
+        "document_burden": 2
+      },
+      "manual_rationale": "Near-misses carry a hotel response: Omar's late checkout was 'denied' and Theo's skyline view is 'subject to availability' - both technically acknowledged by the hotel but invalid; meanwhile vague-date references ('conference weekend', 'Saturday night') must be kept.",
+      "measured_family_rank": 0.5455,
+      "measured_label": "medium",
+      "manual_family_rank": 0.8636,
+      "manual_label": "hard",
+      "family_rank": 0.7045,
+      "combined_hardness": 0.426,
+      "true_label": "hard",
+      "random_label": "hard"
+    },
+    "text_22_manuscript_revisions": {
+      "task_type": "record_extraction",
+      "display_id": "2-22",
+      "solved": 0,
+      "attempts": 15,
+      "raw_solve_rate": 0.0,
+      "solve_rate": 0.0588,
+      "manual_score": 5,
+      "manual_factors": {
+        "instruction_complexity": 3,
+        "distractor_strength": 5,
+        "document_burden": 2
+      },
+      "manual_rationale": "REC22-546c37 'Ravi will redraw Figure 3 with confidence intervals before the journal resubmission deadline' is invalid but near-identical to valid REC22-4b838e; meanwhile REC22-172b6f with an equally vague 'before submission' deadline is valid. A split 'Dr.' fragment (REC22-7c8401) also carries its own ID. Exact match is very unlikely.",
+      "measured_family_rank": 0.9545,
+      "measured_label": "hard",
+      "manual_family_rank": 0.9773,
+      "manual_label": "hard",
+      "family_rank": 0.9659,
+      "combined_hardness": 0.942,
+      "true_label": "hard",
+      "random_label": "medium"
+    },
+    "text_26_bug_triage_p0": {
+      "task_type": "record_extraction",
+      "display_id": "2-26",
+      "solved": 4,
+      "attempts": 19,
+      "raw_solve_rate": 0.2105,
+      "solve_rate": 0.2381,
+      "manual_score": 4,
+      "manual_factors": {
+        "instruction_complexity": 5,
+        "distractor_strength": 3,
+        "document_burden": 2
+      },
+      "manual_rationale": "Long multi-clause instruction mixing P0/P1 bugs and breaking migrations; references include changes with no explicit required action (webhook retry cap, search summary field no longer default, CSV timestamps to UTC) that an agent may classify as advisory, and none of the migrations name an owner.",
+      "measured_family_rank": 0.8182,
+      "measured_label": "hard",
+      "manual_family_rank": 0.8636,
+      "manual_label": "hard",
+      "family_rank": 0.8409,
+      "combined_hardness": 0.7633,
+      "true_label": "hard",
+      "random_label": "medium"
+    },
+    "text_29_civic_votes": {
+      "task_type": "record_extraction",
+      "display_id": "2-29",
+      "solved": 0,
+      "attempts": 16,
+      "raw_solve_rate": 0.0,
+      "solve_rate": 0.0556,
+      "manual_score": 5,
+      "manual_factors": {
+        "instruction_complexity": 2,
+        "distractor_strength": 5,
+        "document_burden": 2
+      },
+      "manual_rationale": "REC29-72ed95 (zoning board passed cafe sidewalk permits 6-1, effective June 1) satisfies every stated field yet is invalid, so an exact match is essentially unattainable from the text; also two near-duplicate night-bus pilot motions must both be kept, and grant-restriction sentences are mixed in.",
+      "measured_family_rank": 1.0,
+      "measured_label": "hard",
+      "manual_family_rank": 0.9773,
+      "manual_label": "hard",
+      "family_rank": 0.9886,
+      "combined_hardness": 0.9436,
+      "true_label": "hard",
+      "random_label": "medium"
+    },
+    "text_30_grant_eligibility": {
+      "task_type": "record_extraction",
+      "display_id": "2-30",
+      "solved": 16,
+      "attempts": 16,
+      "raw_solve_rate": 1.0,
+      "solve_rate": 0.9444,
+      "manual_score": 2,
+      "manual_factors": {
+        "instruction_complexity": 2,
+        "distractor_strength": 2,
+        "document_burden": 2
+      },
+      "manual_rationale": "Restrictions are explicit 'excludes/bars ... unless' sentences; distractors are scoring/format tips and passed civic motions pasted from another document, easy to reject. Only mild judgment for 'no waiver' and 'until balance is cleared' exceptions.",
+      "measured_family_rank": 0.0455,
+      "measured_label": "easy",
+      "manual_family_rank": 0.25,
+      "manual_label": "easy",
+      "family_rank": 0.1477,
+      "combined_hardness": 0.1601,
+      "true_label": "medium",
+      "random_label": "medium"
+    },
+    "text_35_astronomy_anomalies": {
+      "task_type": "record_extraction",
+      "display_id": "2-35",
+      "solved": 13,
+      "attempts": 16,
+      "raw_solve_rate": 0.8125,
+      "solve_rate": 0.7778,
+      "manual_score": 2,
+      "manual_factors": {
+        "instruction_complexity": 2,
+        "distractor_strength": 2,
+        "document_burden": 2
+      },
+      "manual_rationale": "Distractors are a discarded satellite streak, a catalog-matching star, and off-domain climate/biology sentences that are trivially excluded; all 8 references are explicit anomaly-plus-follow-up statements.",
+      "measured_family_rank": 0.4545,
+      "measured_label": "medium",
+      "manual_family_rank": 0.25,
+      "manual_label": "easy",
+      "family_rank": 0.3523,
+      "combined_hardness": 0.1917,
+      "true_label": "hard",
+      "random_label": "easy"
+    },
+    "text_36_restaurant_shifts": {
+      "task_type": "record_extraction",
+      "display_id": "2-36",
+      "solved": 29,
+      "attempts": 34,
+      "raw_solve_rate": 0.8529,
+      "solve_rate": 0.8333,
+      "manual_score": 3,
+      "manual_factors": {
+        "instruction_complexity": 3,
+        "distractor_strength": 3,
+        "document_burden": 2
+      },
+      "manual_rationale": "Approval wording varies ('coverage confirmed', 'signed off', 'Rae confirming'); REC36-39ed2f (Nia picked up patio shift after manager marked the weather plan active) has only indirect approval yet is valid, while Theo's unapproved early leave is invalid.",
+      "measured_family_rank": 0.25,
+      "measured_label": "easy",
+      "manual_family_rank": 0.6364,
+      "manual_label": "medium",
+      "family_rank": 0.4432,
+      "combined_hardness": 0.2193,
+      "true_label": "hard",
+      "random_label": "medium"
+    },
+    "text_39_inspection_repairs": {
+      "task_type": "record_extraction",
+      "display_id": "2-39",
+      "solved": 10,
+      "attempts": 15,
+      "raw_solve_rate": 0.6667,
+      "solve_rate": 0.6471,
+      "manual_score": 3,
+      "manual_factors": {
+        "instruction_complexity": 3,
+        "distractor_strength": 3,
+        "document_burden": 2
+      },
+      "manual_rationale": "Cross-contaminated with lease/showing sentences: the mailbox-key lease duty (REC39-1c32c2) looks like an obligation but is invalid, while the lobby-heat landlord duty is valid; a cracked emergency light cover could be misread as cosmetic.",
+      "measured_family_rank": 0.6364,
+      "measured_label": "medium",
+      "manual_family_rank": 0.6364,
+      "manual_label": "medium",
+      "family_rank": 0.6364,
+      "combined_hardness": 0.3529,
+      "true_label": "hard",
+      "random_label": "hard"
+    },
+    "text_43_insurance_claims": {
+      "task_type": "record_extraction",
+      "display_id": "2-43",
+      "solved": 4,
+      "attempts": 13,
+      "raw_solve_rate": 0.3077,
+      "solve_rate": 0.3333,
+      "manual_score": 3,
+      "manual_factors": {
+        "instruction_complexity": 3,
+        "distractor_strength": 3,
+        "document_burden": 2
+      },
+      "manual_rationale": "Conditional/pending references must be kept (roof leak 'covered once photos confirm', laptop 'pending a police report upload') even though 'incomplete claims' are excluded; duplicate windshield/laptop claimants split valid vs invalid (Maya's windshield without photos is invalid).",
+      "measured_family_rank": 0.7727,
+      "measured_label": "hard",
+      "manual_family_rank": 0.6364,
+      "manual_label": "medium",
+      "family_rank": 0.7045,
+      "combined_hardness": 0.426,
+      "true_label": "hard",
+      "random_label": "easy"
+    },
+    "text_46_online_course_progress": {
+      "task_type": "record_extraction",
+      "display_id": "2-46",
+      "solved": 16,
+      "attempts": 17,
+      "raw_solve_rate": 0.9412,
+      "solve_rate": 0.8947,
+      "manual_score": 2,
+      "manual_factors": {
+        "instruction_complexity": 2,
+        "distractor_strength": 2,
+        "document_burden": 1
+      },
+      "manual_rationale": "References are explicit at-risk triggers with interventions; distractors are on-track students and generic filler. Minor looseness in component naming ('discussion board').",
+      "measured_family_rank": 0.0909,
+      "measured_label": "easy",
+      "manual_family_rank": 0.25,
+      "manual_label": "easy",
+      "family_rank": 0.1705,
+      "combined_hardness": 0.1645,
+      "true_label": "medium",
+      "random_label": "easy"
+    },
+    "text_49_real_estate_showings": {
+      "task_type": "record_extraction",
+      "display_id": "2-49",
+      "solved": 12,
+      "attempts": 15,
+      "raw_solve_rate": 0.8,
+      "solve_rate": 0.7647,
+      "manual_score": 3,
+      "manual_factors": {
+        "instruction_complexity": 3,
+        "distractor_strength": 3,
+        "document_burden": 2
+      },
+      "manual_rationale": "Repair/lease sentences from another file are mixed in (easy to reject), but REC49-ec8e6e (Oak Lane requires advance notice to remove a dog) lacks a real time window yet is valid, and 'Saturday visits' style windows must be accepted.",
+      "measured_family_rank": 0.5,
+      "measured_label": "medium",
+      "manual_family_rank": 0.6364,
+      "manual_label": "medium",
+      "family_rank": 0.5682,
+      "combined_hardness": 0.3095,
+      "true_label": "hard",
+      "random_label": "easy"
+    },
+    "text_50_podcast_sponsor_terms": {
+      "task_type": "record_extraction",
+      "display_id": "2-50",
+      "solved": 14,
+      "attempts": 16,
+      "raw_solve_rate": 0.875,
+      "solve_rate": 0.8333,
+      "manual_score": 2,
+      "manual_factors": {
+        "instruction_complexity": 2,
+        "distractor_strength": 2,
+        "document_burden": 2
+      },
+      "manual_rationale": "12 explicit contractual obligations; distractors are an informal social-clip idea and a completed mattress read. Mild judgment on Oak & Salt exclusivity ('unless it approves another food sponsor') and TrailKit approval terms counting as obligations.",
+      "measured_family_rank": 0.25,
+      "measured_label": "easy",
+      "manual_family_rank": 0.25,
+      "manual_label": "easy",
+      "family_rank": 0.25,
+      "combined_hardness": 0.1667,
+      "true_label": "medium",
+      "random_label": "medium"
+    }
+  },
+  "sequences": {
+    "rep001": [
+      {
+        "episode": 1,
+        "alice": {
+          "task_id": "data_15_procurement_finance_review",
+          "true_label": "medium",
+          "random_label": "easy"
+        },
+        "bob": {
+          "task_id": "data_36_clinical_safety_followups",
+          "true_label": "medium",
+          "random_label": "easy"
+        }
+      },
+      {
+        "episode": 2,
+        "alice": {
+          "task_id": "ca_39_topn",
+          "true_label": "easy",
+          "random_label": "medium"
+        },
+        "bob": {
+          "task_id": "ca_16_window",
+          "true_label": "hard",
+          "random_label": "easy"
+        }
+      },
+      {
+        "episode": 3,
+        "alice": {
+          "task_id": "text_46_online_course_progress",
+          "true_label": "medium",
+          "random_label": "easy"
+        },
+        "bob": {
+          "task_id": "text_17_audit_remediation",
+          "true_label": "hard",
+          "random_label": "easy"
+        }
+      },
+      {
+        "episode": 4,
+        "alice": {
+          "task_id": "data_19_procurement_finance_review",
+          "true_label": "easy",
+          "random_label": "hard"
+        },
+        "bob": {
+          "task_id": "data_25_procurement_finance_review",
+          "true_label": "medium",
+          "random_label": "medium"
+        }
+      },
+      {
+        "episode": 5,
+        "alice": {
+          "task_id": "ca_18_password",
+          "true_label": "medium",
+          "random_label": "medium"
+        },
+        "bob": {
+          "task_id": "ca_10_dedupe",
+          "true_label": "easy",
+          "random_label": "medium"
+        }
+      },
+      {
+        "episode": 6,
+        "alice": {
+          "task_id": "data_42_campus_ticket_risks",
+          "true_label": "easy",
+          "random_label": "easy"
+        },
+        "bob": {
+          "task_id": "data_09_support_case_escalations",
+          "true_label": "medium",
+          "random_label": "hard"
+        }
+      },
+      {
+        "episode": 7,
+        "alice": {
+          "task_id": "ca_34_cart_total",
+          "true_label": "hard",
+          "random_label": "medium"
+        },
+        "bob": {
+          "task_id": "ca_07_compact",
+          "true_label": "medium",
+          "random_label": "easy"
+        }
+      },
+      {
+        "episode": 8,
+        "alice": {
+          "task_id": "data_22_procurement_finance_review",
+          "true_label": "medium",
+          "random_label": "medium"
+        },
+        "bob": {
+          "task_id": "data_37_clinical_safety_followups",
+          "true_label": "medium",
+          "random_label": "easy"
+        }
+      },
+      {
+        "episode": 9,
+        "alice": {
+          "task_id": "data_24_procurement_finance_review",
+          "true_label": "medium",
+          "random_label": "hard"
+        },
+        "bob": {
+          "task_id": "data_38_clinical_safety_followups",
+          "true_label": "medium",
+          "random_label": "medium"
+        }
+      },
+      {
+        "episode": 10,
+        "alice": {
+          "task_id": "text_16_contract_termination",
+          "true_label": "hard",
+          "random_label": "hard"
+        },
+        "bob": {
+          "task_id": "text_39_inspection_repairs",
+          "true_label": "hard",
+          "random_label": "hard"
+        }
+      }
+    ],
+    "rep002": [
+      {
+        "episode": 1,
+        "alice": {
+          "task_id": "ca_49_phone",
+          "true_label": "easy",
+          "random_label": "medium"
+        },
+        "bob": {
+          "task_id": "ca_30_email_mask",
+          "true_label": "medium",
+          "random_label": "easy"
+        }
+      },
+      {
+        "episode": 2,
+        "alice": {
+          "task_id": "data_07_support_case_escalations",
+          "true_label": "easy",
+          "random_label": "easy"
+        },
+        "bob": {
+          "task_id": "data_10_support_case_escalations",
+          "true_label": "easy",
+          "random_label": "hard"
+        }
+      },
+      {
+        "episode": 3,
+        "alice": {
+          "task_id": "text_50_podcast_sponsor_terms",
+          "true_label": "medium",
+          "random_label": "medium"
+        },
+        "bob": {
+          "task_id": "text_11_instrument_calibration",
+          "true_label": "medium",
+          "random_label": "hard"
+        }
+      },
+      {
+        "episode": 4,
+        "alice": {
+          "task_id": "data_31_clinical_safety_followups",
+          "true_label": "easy",
+          "random_label": "easy"
+        },
+        "bob": {
+          "task_id": "data_36_clinical_safety_followups",
+          "true_label": "medium",
+          "random_label": "easy"
+        }
+      },
+      {
+        "episode": 5,
+        "alice": {
+          "task_id": "text_01_roommate_expenses",
+          "true_label": "easy",
+          "random_label": "hard"
+        },
+        "bob": {
+          "task_id": "text_08_algebra_constraints",
+          "true_label": "hard",
+          "random_label": "hard"
+        }
+      },
+      {
+        "episode": 6,
+        "alice": {
+          "task_id": "ca_15_intersection",
+          "true_label": "easy",
+          "random_label": "hard"
+        },
+        "bob": {
+          "task_id": "ca_05_pagination",
+          "true_label": "medium",
+          "random_label": "easy"
+        }
+      },
+      {
+        "episode": 7,
+        "alice": {
+          "task_id": "text_30_grant_eligibility",
+          "true_label": "medium",
+          "random_label": "medium"
+        },
+        "bob": {
+          "task_id": "text_35_astronomy_anomalies",
+          "true_label": "hard",
+          "random_label": "easy"
+        }
+      },
+      {
+        "episode": 8,
+        "alice": {
+          "task_id": "text_20_hotel_requests",
+          "true_label": "hard",
+          "random_label": "hard"
+        },
+        "bob": {
+          "task_id": "text_29_civic_votes",
+          "true_label": "hard",
+          "random_label": "medium"
+        }
+      },
+      {
+        "episode": 9,
+        "alice": {
+          "task_id": "data_13_support_case_escalations",
+          "true_label": "easy",
+          "random_label": "medium"
+        },
+        "bob": {
+          "task_id": "data_39_campus_ticket_risks",
+          "true_label": "easy",
+          "random_label": "hard"
+        }
+      },
+      {
+        "episode": 10,
+        "alice": {
+          "task_id": "text_22_manuscript_revisions",
+          "true_label": "hard",
+          "random_label": "medium"
+        },
+        "bob": {
+          "task_id": "text_02_family_medical_pickups",
+          "true_label": "hard",
+          "random_label": "hard"
+        }
+      }
+    ],
+    "rep003": [
+      {
+        "episode": 1,
+        "alice": {
+          "task_id": "ca_50_password",
+          "true_label": "easy",
+          "random_label": "medium"
+        },
+        "bob": {
+          "task_id": "ca_26_temperature",
+          "true_label": "hard",
+          "random_label": "medium"
+        }
+      },
+      {
+        "episode": 2,
+        "alice": {
+          "task_id": "text_10_lab_anomalies",
+          "true_label": "hard",
+          "random_label": "hard"
+        },
+        "bob": {
+          "task_id": "text_02_family_medical_pickups",
+          "true_label": "hard",
+          "random_label": "hard"
+        }
+      },
+      {
+        "episode": 3,
+        "alice": {
+          "task_id": "ca_08_phone",
+          "true_label": "hard",
+          "random_label": "easy"
+        },
+        "bob": {
+          "task_id": "ca_32_grade",
+          "true_label": "medium",
+          "random_label": "easy"
+        }
+      },
+      {
+        "episode": 4,
+        "alice": {
+          "task_id": "text_13_match_turning_points",
+          "true_label": "medium",
+          "random_label": "medium"
+        },
+        "bob": {
+          "task_id": "text_15_lab_results_recheck",
+          "true_label": "medium",
+          "random_label": "hard"
+        }
+      },
+      {
+        "episode": 5,
+        "alice": {
+          "task_id": "data_08_support_case_escalations",
+          "true_label": "easy",
+          "random_label": "medium"
+        },
+        "bob": {
+          "task_id": "data_47_campus_ticket_risks",
+          "true_label": "easy",
+          "random_label": "medium"
+        }
+      },
+      {
+        "episode": 6,
+        "alice": {
+          "task_id": "text_06_earnings_margin_risks",
+          "true_label": "hard",
+          "random_label": "medium"
+        },
+        "bob": {
+          "task_id": "text_20_hotel_requests",
+          "true_label": "hard",
+          "random_label": "hard"
+        }
+      },
+      {
+        "episode": 7,
+        "alice": {
+          "task_id": "ca_20_acronym",
+          "true_label": "hard",
+          "random_label": "medium"
+        },
+        "bob": {
+          "task_id": "ca_40_inventory",
+          "true_label": "medium",
+          "random_label": "medium"
+        }
+      },
+      {
+        "episode": 8,
+        "alice": {
+          "task_id": "data_19_procurement_finance_review",
+          "true_label": "easy",
+          "random_label": "hard"
+        },
+        "bob": {
+          "task_id": "data_16_procurement_finance_review",
+          "true_label": "medium",
+          "random_label": "hard"
+        }
+      },
+      {
+        "episode": 9,
+        "alice": {
+          "task_id": "ca_05_pagination",
+          "true_label": "medium",
+          "random_label": "easy"
+        },
+        "bob": {
+          "task_id": "ca_34_cart_total",
+          "true_label": "hard",
+          "random_label": "medium"
+        }
+      },
+      {
+        "episode": 10,
+        "alice": {
+          "task_id": "ca_42_buckets",
+          "true_label": "easy",
+          "random_label": "medium"
+        },
+        "bob": {
+          "task_id": "ca_33_normalize",
+          "true_label": "medium",
+          "random_label": "medium"
+        }
+      }
+    ],
+    "rep004": [
+      {
+        "episode": 1,
+        "alice": {
+          "task_id": "ca_19_cart_total",
+          "true_label": "easy",
+          "random_label": "hard"
+        },
+        "bob": {
+          "task_id": "ca_50_password",
+          "true_label": "easy",
+          "random_label": "medium"
+        }
+      },
+      {
+        "episode": 2,
+        "alice": {
+          "task_id": "text_36_restaurant_shifts",
+          "true_label": "hard",
+          "random_label": "medium"
+        },
+        "bob": {
+          "task_id": "text_26_bug_triage_p0",
+          "true_label": "hard",
+          "random_label": "medium"
+        }
+      },
+      {
+        "episode": 3,
+        "alice": {
+          "task_id": "data_24_procurement_finance_review",
+          "true_label": "medium",
+          "random_label": "hard"
+        },
+        "bob": {
+          "task_id": "data_49_campus_ticket_risks",
+          "true_label": "easy",
+          "random_label": "medium"
+        }
+      },
+      {
+        "episode": 4,
+        "alice": {
+          "task_id": "ca_01_time",
+          "true_label": "easy",
+          "random_label": "easy"
+        },
+        "bob": {
+          "task_id": "ca_17_csv",
+          "true_label": "hard",
+          "random_label": "easy"
+        }
+      },
+      {
+        "episode": 5,
+        "alice": {
+          "task_id": "data_12_support_case_escalations",
+          "true_label": "easy",
+          "random_label": "easy"
+        },
+        "bob": {
+          "task_id": "data_36_clinical_safety_followups",
+          "true_label": "medium",
+          "random_label": "easy"
+        }
+      },
+      {
+        "episode": 6,
+        "alice": {
+          "task_id": "data_37_clinical_safety_followups",
+          "true_label": "medium",
+          "random_label": "easy"
+        },
+        "bob": {
+          "task_id": "data_18_procurement_finance_review",
+          "true_label": "medium",
+          "random_label": "medium"
+        }
+      },
+      {
+        "episode": 7,
+        "alice": {
+          "task_id": "ca_03_roman",
+          "true_label": "easy",
+          "random_label": "easy"
+        },
+        "bob": {
+          "task_id": "ca_14_initials",
+          "true_label": "medium",
+          "random_label": "hard"
+        }
+      },
+      {
+        "episode": 8,
+        "alice": {
+          "task_id": "data_43_campus_ticket_risks",
+          "true_label": "easy",
+          "random_label": "easy"
+        },
+        "bob": {
+          "task_id": "data_39_campus_ticket_risks",
+          "true_label": "easy",
+          "random_label": "hard"
+        }
+      },
+      {
+        "episode": 9,
+        "alice": {
+          "task_id": "ca_09_compact",
+          "true_label": "easy",
+          "random_label": "hard"
+        },
+        "bob": {
+          "task_id": "ca_11_date",
+          "true_label": "medium",
+          "random_label": "easy"
+        }
+      },
+      {
+        "episode": 10,
+        "alice": {
+          "task_id": "data_10_support_case_escalations",
+          "true_label": "easy",
+          "random_label": "hard"
+        },
+        "bob": {
+          "task_id": "data_29_clinical_safety_followups",
+          "true_label": "medium",
+          "random_label": "easy"
+        }
+      }
+    ],
+    "rep005": [
+      {
+        "episode": 1,
+        "alice": {
+          "task_id": "ca_44_inventory",
+          "true_label": "medium",
+          "random_label": "easy"
+        },
+        "bob": {
+          "task_id": "ca_10_dedupe",
+          "true_label": "easy",
+          "random_label": "medium"
+        }
+      },
+      {
+        "episode": 2,
+        "alice": {
+          "task_id": "data_37_clinical_safety_followups",
+          "true_label": "medium",
+          "random_label": "easy"
+        },
+        "bob": {
+          "task_id": "data_29_clinical_safety_followups",
+          "true_label": "medium",
+          "random_label": "easy"
+        }
+      },
+      {
+        "episode": 3,
+        "alice": {
+          "task_id": "data_49_campus_ticket_risks",
+          "true_label": "easy",
+          "random_label": "medium"
+        },
+        "bob": {
+          "task_id": "data_45_campus_ticket_risks",
+          "true_label": "easy",
+          "random_label": "medium"
+        }
+      },
+      {
+        "episode": 4,
+        "alice": {
+          "task_id": "ca_09_compact",
+          "true_label": "easy",
+          "random_label": "hard"
+        },
+        "bob": {
+          "task_id": "ca_27_initials",
+          "true_label": "medium",
+          "random_label": "medium"
+        }
+      },
+      {
+        "episode": 5,
+        "alice": {
+          "task_id": "ca_24_slugify",
+          "true_label": "medium",
+          "random_label": "hard"
+        },
+        "bob": {
+          "task_id": "ca_13_intersection",
+          "true_label": "medium",
+          "random_label": "easy"
+        }
+      },
+      {
+        "episode": 6,
+        "alice": {
+          "task_id": "text_49_real_estate_showings",
+          "true_label": "hard",
+          "random_label": "easy"
+        },
+        "bob": {
+          "task_id": "text_36_restaurant_shifts",
+          "true_label": "hard",
+          "random_label": "medium"
+        }
+      },
+      {
+        "episode": 7,
+        "alice": {
+          "task_id": "ca_12_grade",
+          "true_label": "easy",
+          "random_label": "hard"
+        },
+        "bob": {
+          "task_id": "ca_05_pagination",
+          "true_label": "medium",
+          "random_label": "easy"
+        }
+      },
+      {
+        "episode": 8,
+        "alice": {
+          "task_id": "ca_31_transactions",
+          "true_label": "easy",
+          "random_label": "hard"
+        },
+        "bob": {
+          "task_id": "ca_26_temperature",
+          "true_label": "hard",
+          "random_label": "medium"
+        }
+      },
+      {
+        "episode": 9,
+        "alice": {
+          "task_id": "ca_08_phone",
+          "true_label": "hard",
+          "random_label": "easy"
+        },
+        "bob": {
+          "task_id": "ca_36_date",
+          "true_label": "medium",
+          "random_label": "medium"
+        }
+      },
+      {
+        "episode": 10,
+        "alice": {
+          "task_id": "text_43_insurance_claims",
+          "true_label": "hard",
+          "random_label": "easy"
+        },
+        "bob": {
+          "task_id": "text_18_shipment_delays",
+          "true_label": "hard",
+          "random_label": "medium"
+        }
+      }
+    ]
+  }
+}

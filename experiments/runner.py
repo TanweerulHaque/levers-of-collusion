@@ -37,6 +37,13 @@ from experiments.protocol import (
     DEFAULT_MAX_ROUNDS,
     MEMORY_SCOPE,
 )
+from experiments.protocol.difficulty_labels import (
+    DEFAULT_DIFFICULTY_LABEL_MODE,
+    DEFAULT_LABEL_FILE,
+    DIFFICULTY_LABEL_MODES,
+    check_label_coverage,
+    load_difficulty_labels,
+)
 from experiments.protocol.rewards import (
     DEFAULT_REWARD_PENALTY,
     DEFAULT_REWARD_SHARING,
@@ -215,6 +222,51 @@ def add_reward_scheme_arguments(parser: argparse.ArgumentParser) -> None:
     )
 
 
+DIFFICULTY_LABEL_HELP = {
+    "none": "no label (default, the original protocol)",
+    "true": "the measured difficulty of the peer's task",
+    "random": "a label shuffled across tasks, independent of the real difficulty",
+}
+
+
+def add_difficulty_label_arguments(parser: argparse.ArgumentParser) -> None:
+    group = parser.add_argument_group("peer difficulty label")
+    group.add_argument(
+        "--peer-difficulty-label",
+        choices=DIFFICULTY_LABEL_MODES,
+        default=DEFAULT_DIFFICULTY_LABEL_MODE,
+        help=(
+            "Difficulty label of the peer's task shown to each agent in its "
+            "communication-phase brief; an agent never sees its own task's label. "
+            + "; ".join(f"{name}: {text}" for name, text in DIFFICULTY_LABEL_HELP.items())
+        ),
+    )
+    group.add_argument(
+        "--difficulty-labels",
+        default=DEFAULT_LABEL_FILE,
+        help=(
+            "Label file written by analysis/task_difficulty_labels.py "
+            f"(default: {DEFAULT_LABEL_FILE}). Also used to record each task's "
+            "measured label under --peer-difficulty-label none."
+        ),
+    )
+
+
+def validate_difficulty_label_args(args: argparse.Namespace) -> None:
+    """A labelled run needs a readable label file; the baseline only records from it."""
+    if args.peer_difficulty_label not in DIFFICULTY_LABEL_MODES:
+        raise ValueError(f"Unknown --peer-difficulty-label: {args.peer_difficulty_label}")
+    if args.peer_difficulty_label == DEFAULT_DIFFICULTY_LABEL_MODE:
+        return
+    if not args.difficulty_labels or not Path(args.difficulty_labels).is_file():
+        raise ValueError(
+            f"--peer-difficulty-label {args.peer_difficulty_label} needs a label file; "
+            f"{args.difficulty_labels!r} does not exist. Write it with "
+            "python analysis/task_difficulty_labels.py"
+        )
+    load_difficulty_labels(args.difficulty_labels)
+
+
 def add_verdict_review_arguments(group) -> None:
     group.add_argument(
         "--verdict-review",
@@ -311,6 +363,7 @@ def build_run_parser() -> argparse.ArgumentParser:
     add_feedback_arguments(parser)
 
     add_reward_scheme_arguments(parser)
+    add_difficulty_label_arguments(parser)
 
     output_group = parser.add_argument_group("output")
     output_group.add_argument("--run-label", default="")
@@ -408,6 +461,7 @@ def validate_run_args(args: argparse.Namespace) -> None:
     _resolve_feedback_settings(args)
     # Validate manually constructed options as well as parser-generated values.
     reward_scheme_from_args(args)
+    validate_difficulty_label_args(args)
     controlled = getattr(args, "bob_model", "") == "controlled"
     if controlled:
         if not args.controlled_bob_cache:
@@ -535,7 +589,10 @@ def _resume_state(
         "reflection": args.reflection,
         "reward": args.reward,
         "reward_scheme": reward_scheme.label,
+        "peer_difficulty_label": args.peer_difficulty_label,
     }
+    # Records from before difficulty labels showed none.
+    config.setdefault("peer_difficulty_label", DEFAULT_DIFFICULTY_LABEL_MODE)
     for key in (
         "controlled_bob_task_model",
         "controlled_bob_verdict",
@@ -699,6 +756,15 @@ def _run_selected_episodes(
         f"penalty {reward_scheme.penalty}",
         True,
     )
+    log_progress(
+        f"Peer difficulty label: {args.peer_difficulty_label}"
+        + (
+            f" (from {args.difficulty_labels})"
+            if args.peer_difficulty_label != DEFAULT_DIFFICULTY_LABEL_MODE
+            else ""
+        ),
+        True,
+    )
     if completed_episodes:
         log_progress(
             f"Resuming after {completed_episodes}/{len(selected.pairs)} episodes "
@@ -736,6 +802,8 @@ def _run_selected_episodes(
                 reward=args.reward,
                 verdict_review=args.verdict_review,
                 reward_scheme=reward_scheme,
+                peer_difficulty_label=args.peer_difficulty_label,
+                difficulty_labels=args.difficulty_labels,
                 controlled_bob_verdict=args.controlled_bob_verdict
                 if args.bob_model == "controlled"
                 else "",
@@ -774,6 +842,11 @@ def main() -> None:
     validate_run_args(args)
     output_path = _create_output_path(args, repo_root)
     selected = _load_selected_tasks(args=args, repo_root=repo_root)
+    check_label_coverage(
+        args.peer_difficulty_label,
+        args.difficulty_labels,
+        [str(task["task_id"]) for pair in selected.pairs for task in pair],
+    )
     verdict_policy_by_episode, throttle_by_episode = _episode_policy_sequences(
         args,
         len(selected.pairs),

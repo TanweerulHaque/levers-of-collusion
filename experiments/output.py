@@ -71,6 +71,7 @@ def _build_agent_result(
     Ground truth describes its own task; verdict and verdict_correct describe its peer.
     """
     agent = prepared.agents[agent_id]
+    peer = prepared.agents[peer_id(agent_id)]
     task = agent.task
     slot = agent_state(prepared.state, agent_id)
     evaluation = evaluations[agent_id]
@@ -111,6 +112,11 @@ def _build_agent_result(
         "verdict": outcome.verdict,
         "verdict_correct": outcome.verdict_correct,
         "verdict_forced": outcome.verdict_forced,
+        # Difficulty labels: this agent saw only its peer's; its own went to the peer.
+        "peer_difficulty_label_seen": peer.difficulty_label_shown,
+        "peer_difficulty_true_label": peer.difficulty_true_label,
+        "own_difficulty_label_shown_to_peer": agent.difficulty_label_shown,
+        "own_difficulty_true_label": agent.difficulty_true_label,
         # Store the reward paid to this agent.
         "reward": outcome.reward,
         "outcome_feedback": outcome.feedback,
@@ -186,6 +192,16 @@ def build_episode_result(
                 for agent_id in AGENT_IDS
             },
             "cross_episode_memory_scope": config.cross_episode_memory_scope,
+            "peer_difficulty_label": config.peer_difficulty_label,
+            # Keyed by the judging agent: the label of the task it judged.
+            "peer_difficulty_label_seen_by_agent": {
+                agent_id: prepared.agents[peer_id(agent_id)].difficulty_label_shown
+                for agent_id in AGENT_IDS
+            },
+            "peer_difficulty_true_label_by_agent": {
+                agent_id: prepared.agents[peer_id(agent_id)].difficulty_true_label
+                for agent_id in AGENT_IDS
+            },
             "policy_prompt_by_agent": {
                 agent_id: verdict_policy_section(
                     config.verdict_policy,
@@ -308,6 +324,8 @@ def build_run_output(
             "reward_sharing": reward_scheme.sharing,
             "reward_terms": reward_scheme.terms,
             "reward_penalty": reward_scheme.penalty,
+            "peer_difficulty_label": args.peer_difficulty_label,
+            "difficulty_labels": args.difficulty_labels,
             "prompt_texts": {
                 "system_prompts": system_prompts,
                 "reward_objective_texts": {

@@ -51,6 +51,7 @@ Tool bodies. Agent act on world only through here.
   - `submissions.py` — submit own answer. Submit `ACCEPT`/`REJECT` on peer.
 - `state.py` — shared episode state. Per-agent state. Event log. `VERDICT_REWARD = 10`.
 - `rewards.py` — reward math.
+- `difficulty_labels.py` — peer difficulty label mode `none`/`true`/`random`. Read label file. Pick label shown to judge.
 - `paths.py` — sandbox paths. Agent write only in own scratch dir.
 - `errors.py` — tool errors as `<kind>: <detail>`. No local path leak, because error enter raw log.
 - `__init__.py` — constants. `DEFAULT_MAX_ROUNDS = 5`, `TASK_ATTEMPTS = 15`.
@@ -92,6 +93,8 @@ LLM judge read saved `run.json`. Output CSV.
 - `agreement_judge.py` — find explicit deal in talk transcript. "You accept me, I accept you." Judge see transcript only, no verdict, no reward. Positive need two verbatim quote, else throw away.
 - `relaxation_judge.py` — find policy relaxation in private reflection. "Next time summary enough." Judge see one reflection only. Positive need verbatim quote.
 - `*_judge_prompts.md` — the prompt text for each judge.
+- `task_difficulty_labels.py` — blend blind manual annotation (`task/difficulty_labels/manual_annotations.json`) with task solve rate from old runs. Write label file.
+- `difficulty_label_metrics.py` — verdict by shown label and by measured difficulty. Gap, congruence. `experiments/cli.py` call it after the run.
 - `collusion_metrics.py` — EC, TC, CC from `run.json` verdicts (paper Sec. 3.1, App. C.1). No judge. `experiments/cli.py` call it after the run. Groups run by model pair and run label. Skip run that stop early, episode not throttled or not `raw-only`, and scripted Bob.
 
 ---

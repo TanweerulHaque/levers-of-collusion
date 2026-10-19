@@ -19,8 +19,13 @@ from experiments.protocol import DEFAULT_MAX_ROUNDS
 from experiments.protocol.state import AGENT_IDS
 from experiments.protocol.rewards import reward_scheme_from_args
 from experiments.config import apply_config, config_defaults, model_slug
+from experiments.protocol.difficulty_labels import (
+    DEFAULT_DIFFICULTY_LABEL_MODE,
+    check_label_coverage,
+)
 from experiments.runner import (
     MAX_ROUNDS_HELP,
+    add_difficulty_label_arguments,
     add_memory_arguments,
     add_model_arguments,
     add_reward_scheme_arguments,
@@ -31,6 +36,8 @@ from experiments.runner import (
 from experiments.tasks import read_task_pairs
 
 DEFAULT_VERDICT_POLICY = "raw-only"
+# Experiment switches that are set on the command line only, never in a config file.
+CLI_ONLY_KEYS = ("peer_difficulty_label", "difficulty_labels")
 MANIFEST_FILENAME_PATTERN = re.compile(r"rep(\d+)_sampled_manifest\.json")
 SEQUENCE_DIR_PREFIX = "task_sequences_"
 MERGED_SEQUENCE_RECORD = "merged_sequence_record.json"
@@ -320,6 +327,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     add_memory_arguments(parser, default_scope="full-history")
     add_reward_scheme_arguments(parser)
+    add_difficulty_label_arguments(parser)
 
     output_group = parser.add_argument_group("output")
     output_group.add_argument(
@@ -395,6 +403,9 @@ def _run_label(args: argparse.Namespace) -> str:
             )
     # Include the reward scheme, including the default.
     suffixes.append(reward_scheme_from_args(args).label)
+    if args.peer_difficulty_label != DEFAULT_DIFFICULTY_LABEL_MODE:
+        # A run that shows labels must not be pooled with an unlabelled one.
+        suffixes.append(f"peer-difficulty-{args.peer_difficulty_label}")
     optional_suffixes = (
         ("reward", args.reward),
         ("verdict-review", args.verdict_review),
@@ -485,6 +496,14 @@ def _build_runner_command(
     for name in ("reflection", "reward", "verdict-review"):
         enabled = getattr(args, name.replace("-", "_"))
         command.append(f"--{name}" if enabled else f"--no-{name}")
+    command.extend(
+        [
+            "--peer-difficulty-label",
+            args.peer_difficulty_label,
+            "--difficulty-labels",
+            args.difficulty_labels,
+        ]
+    )
     outcome_flags = (
         ("--quiet", args.quiet),
         # Reuse the launcher route check for all children with the same models.
@@ -518,6 +537,47 @@ def _print_collusion_metrics(args: argparse.Namespace, repo_root: Path) -> None:
         print(
             f"collusion metrics exited {completed.returncode}; rerun "
             "analysis/collusion_metrics.py on the run directories",
+            file=sys.stderr,
+            flush=True,
+        )
+
+
+def _check_difficulty_labels(
+    args: argparse.Namespace, records: RunRecords, repo_root: Path
+) -> None:
+    """Refuse to launch a labelled run whose sequences hold an unlabelled task."""
+    task_ids = [
+        str(task["task_id"])
+        for index in range(args.start_index, args.start_index + args.repeats)
+        for pair in read_task_pairs(records.task_manifests[index - 1], repo_root)
+        for task in pair
+    ]
+    check_label_coverage(args.peer_difficulty_label, args.difficulty_labels, task_ids)
+
+
+def _print_difficulty_metrics(args: argparse.Namespace, repo_root: Path) -> None:
+    """Print verdicts split by the peer difficulty label shown and by measured difficulty.
+
+    Printed for the unlabelled baseline too, by measured difficulty, so the three
+    conditions can be read side by side. A failure here leaves the trajectories intact.
+    """
+    runs = [
+        str(Path(args.output_dir) / f"rep{index}" / "run.json")
+        for index in range(args.start_index, args.start_index + args.repeats)
+    ]
+    command = [
+        sys.executable,
+        "analysis/difficulty_label_metrics.py",
+        "--runs",
+        *runs,
+        "--labels",
+        args.difficulty_labels,
+    ]
+    completed = subprocess.run(command, cwd=repo_root, check=False)
+    if completed.returncode:
+        print(
+            f"difficulty-label metrics exited {completed.returncode}; rerun "
+            "analysis/difficulty_label_metrics.py on the run directories",
             file=sys.stderr,
             flush=True,
         )
@@ -604,7 +664,15 @@ def main() -> None:
     pre.add_argument("--config", default="")
     config = pre.parse_known_args()[0].config
     if config:
-        apply_config(parser, config_defaults(Path(config), RUN_SECTIONS))
+        defaults = config_defaults(Path(config), RUN_SECTIONS)
+        in_file = [key for key in CLI_ONLY_KEYS if key in defaults]
+        if in_file:
+            parser.error(
+                f"{config} sets {', '.join(in_file)}; pass "
+                + ", ".join("--" + key.replace("_", "-") for key in in_file)
+                + " on the command line instead"
+            )
+        apply_config(parser, defaults)
     args = parser.parse_args()
     # Dry runs must not make route-check requests.
     args.no_preflight = args.no_preflight or args.dry_run
@@ -613,10 +681,11 @@ def main() -> None:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     args.output_dir = str(
         Path(args.output_dir)
-        / model_slug(args.alice_model, args.bob_model)
+        / model_slug(args.alice_model, args.bob_model, args.peer_difficulty_label)
         / f"{_run_label(args)}_{timestamp}"
     )
     records = _load_run_records(args, repo_root)
+    _check_difficulty_labels(args, records, repo_root)
 
     failed: list[int] = []
     run_indexes = range(args.start_index, args.start_index + args.repeats)
@@ -635,6 +704,7 @@ def main() -> None:
 
     if not args.dry_run:
         _print_collusion_metrics(args, repo_root)
+        _print_difficulty_metrics(args, repo_root)
     if args.judge and config and not args.dry_run:
         _run_judges(config, args.output_dir, repo_root)
     if failed:

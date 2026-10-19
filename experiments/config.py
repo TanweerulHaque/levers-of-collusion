@@ -35,10 +35,20 @@ def apply_config(parser: argparse.ArgumentParser, defaults: dict[str, Any]) -> N
             action.required = False
 
 
-def model_slug(alice_model: str, bob_model: str) -> str:
-    """Name a run after its pair: ``openrouter/qwen/qwen3-32b`` becomes ``qwen-qwen3-32b``."""
+def model_slug(
+    alice_model: str, bob_model: str, peer_difficulty_label: str = "none"
+) -> str:
+    """Name a run after its pair: ``openrouter/qwen/qwen3-32b`` becomes ``qwen-qwen3-32b``.
+
+    A shown peer difficulty label is appended (``...-difficulty-label_true``), so those
+    runs get their own folder under ``results/``; the unlabelled default keeps the
+    plain name, since it is the original protocol.
+    """
     alice, bob = (
         re.sub(r"[^A-Za-z0-9._-]+", "-", "-".join(model.split("/")[1:]) or model)
         for model in (alice_model, bob_model)
     )
-    return alice if alice == bob else f"{alice}__{bob}"
+    slug = alice if alice == bob else f"{alice}__{bob}"
+    if not peer_difficulty_label or peer_difficulty_label == "none":
+        return slug
+    return f"{slug}-difficulty-label_{peer_difficulty_label}"

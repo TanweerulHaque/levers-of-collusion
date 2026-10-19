@@ -35,6 +35,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import collusion_metrics  # noqa: E402
 import compare_runs  # noqa: E402
+import difficulty_label_metrics  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 # The page is embedded in this file and read once at start-up, so remember which version
@@ -375,7 +376,14 @@ def launch_summary(launch_dir: Path) -> dict:
     runs = [(d, json.loads((d / "run.json").read_text(encoding="utf-8"))) for d in launch_reps(launch_dir)]
     rates = collusion_rates([(d.name, run) for d, run in runs])
     rates["run_config"] = runs[0][1].get("run_config") or {} if runs else {}
+    rates["difficulty"] = difficulty_summary([run for _, run in runs])
     return rates
+
+
+def difficulty_summary(runs: list[dict]) -> dict:
+    """Verdicts by the peer difficulty label shown and by measured difficulty."""
+    labels = compare_runs._difficulty_labels()  # noqa: SLF001 (shared, read once)
+    return difficulty_label_metrics.summarize_runs(runs, labels)
 
 
 def compute_metrics(run: dict, tables: dict) -> dict:
@@ -502,6 +510,7 @@ def compute_metrics(run: dict, tables: dict) -> dict:
 
     return {"episodes": episodes, "agents": agents, "collusion": collusion,
             "agreement": agreement, "relaxation": relaxation, "per_agent": per_agent,
+            "difficulty": difficulty_summary([run]),
             "groups": sorted(groups.values(), key=lambda b: (b["group"], b["verdict_policy"]))}
 
 
@@ -1116,6 +1125,7 @@ function renderRunHead() {
   add("verdict", cfg.verdict_policy);
   add("memory", cfg.cross_episode_memory_scope || cfg.memory_scope);
   add("reward", cfg.reward_scheme);
+  add("difficulty label", cfg.peer_difficulty_label);
   add("calls", num(usage.call_count));
   add("tokens", num(usage.total_tokens));
   add("cost", usage.cost_usd !== undefined ? "$" + usage.cost_usd : null);
@@ -1186,6 +1196,8 @@ async function loadSummary() {
   renderLaunchHead(launch, summary);
   view.textContent = "";
   view.append(renderPaperRates(summary));
+  if (summary.difficulty) view.append(difficultyCard(summary.difficulty,
+    "peer difficulty label · verdicts over all " + summary.trajectories + " rep" + (summary.trajectories === 1 ? "" : "s")));
   setHash();
 }
 
@@ -1207,6 +1219,7 @@ function renderLaunchHead(launch, summary) {
   add("verdict", cfg.verdict_policy);
   add("memory", cfg.cross_episode_memory_scope || cfg.memory_scope);
   add("reward", cfg.reward_scheme);
+  add("difficulty label", cfg.peer_difficulty_label);
   head.append(chips);
 }
 
@@ -1330,6 +1343,8 @@ function renderEpisodes() {
       const agent = agents[name];
       if (!agent) continue;
       summary.append(badge(name + ": " + agent.verdict + (agent.verdict_correct ? " ✓" : " ✗"), agent.verdict_correct ? "pos" : "neg"));
+      if (agent.peer_difficulty_label_seen) summary.append(badge(name + " saw " + agent.peer_difficulty_label_seen +
+        (agent.peer_difficulty_true_label ? " (measured " + agent.peer_difficulty_true_label + ")" : ""), "info"));
     }
     box.append(summary);
 
@@ -1343,6 +1358,10 @@ function renderEpisodes() {
         ["expected_verdict", agent.expected_verdict], ["verdict", agent.verdict],
         ["verdict_correct", agent.verdict_correct === undefined ? "" : badge(String(agent.verdict_correct), boolTone(agent.verdict_correct))],
         ["verdict_forced", agent.verdict_forced], ["reward", agent.reward],
+        ["peer difficulty label seen", agent.peer_difficulty_label_seen || "none"],
+        ["peer difficulty (measured)", agent.peer_difficulty_true_label],
+        ["own label shown to peer", agent.own_difficulty_label_shown_to_peer || "none"],
+        ["own difficulty (measured)", agent.own_difficulty_true_label],
         ["code_path", agent.code_path],
       ]));
       card.append(textBlock("reflection", agent.reflection));
@@ -1674,6 +1693,8 @@ function renderMetrics() {
   frag.append(el("div", { class: "card" }, el("h3", { text: "verdicts by agent" }),
     el("div", { class: "tablewrap" }, agentTable)));
 
+  if (metrics.difficulty) frag.append(difficultyCard(metrics.difficulty, "peer difficulty label · verdicts in this rep"));
+
   if (metrics.groups.length > 1) {
     const groupTable = el("table", {},
       el("thead", {}, el("tr", {}, ["group", "verdict policy", "episodes", "mutual ACCEPT", "rate"].map((c) => el("th", { text: c })))),
@@ -1684,6 +1705,59 @@ function renderMetrics() {
       el("div", { class: "tablewrap" }, groupTable)));
   }
   return frag;
+}
+
+/* ---------- peer difficulty label ---------- */
+
+const DIFFICULTY_LEVELS = ["easy", "medium", "hard"];
+
+function ppGap(gap) {
+  if (!gap || gap.value === null || gap.value === undefined) return "—";
+  const f = (v) => (v >= 0 ? "+" : "") + (v * 100).toFixed(1);
+  return f(gap.value) + " pp" + (gap.ci ? "  [" + f(gap.ci[0]) + ", " + f(gap.ci[1]) + "]" : "");
+}
+
+function difficultyTable(byLevel) {
+  const cell = (r) => r.n ? pct1(r.rate) + " (" + r.k + "/" + r.n + ")" : "—";
+  return simpleTable(["label", "verdicts", "ACCEPT", "accuracy", "false accept", "false reject", "peer task failed"],
+    DIFFICULTY_LEVELS.map((level) => {
+      const s = byLevel[level];
+      return [level, String(s.verdicts), cell(s.accept), cell(s.accuracy), cell(s.false_accept), cell(s.false_reject), cell(s.peer_fail_share)];
+    }));
+}
+
+function difficultyCard(d, title) {
+  const card = el("div", { class: "card" }, el("h3", { text: title }));
+  const modes = d.modes.length ? d.modes.join(" / ") : "none";
+  const shown = DIFFICULTY_LEVELS.some((level) => d.by_shown[level].verdicts);
+  const tiles = el("div", { class: "tiles" });
+  tiles.append(tile("label shown", modes, modes === "none" ? "baseline: judges saw no label" : "each judge saw its peer's label, never its own", true));
+  tiles.append(tile("ACCEPT gap · shown hard − easy", shown ? ppGap(d.gap_shown) : "—",
+    shown ? "effect of the label itself under random labels" : "no label was shown", !shown));
+  tiles.append(tile("ACCEPT gap · measured hard − easy", ppGap(d.gap_true), "by the judged task's measured difficulty"));
+  tiles.append(tile("mentions difficulty", pct1(d.overall.mentions_difficulty.rate),
+    d.overall.mentions_difficulty.k + " of " + d.overall.mentions_difficulty.n + " verdict reasonings"));
+  card.append(tiles);
+  if (shown) {
+    card.append(el("h4", { style: "margin:10px 0 6px;font-size:13px", text: "by label shown to the judge" }));
+    card.append(difficultyTable(d.by_shown));
+  }
+  card.append(el("h4", { style: "margin:10px 0 6px;font-size:13px", text: "by measured difficulty of the judged task" }));
+  card.append(difficultyTable(d.by_true));
+  if (d.congruence && d.modes.includes("random")) {
+    const c = d.congruence;
+    const row = (name, s) => [name, String(s.verdicts), s.accept.n ? pct1(s.accept.rate) : "—", s.accuracy.n ? pct1(s.accuracy.rate) : "—"];
+    card.append(el("h4", { style: "margin:10px 0 6px;font-size:13px",
+      text: "random labels · shown = measured in " + pct1(c.match_share.rate) + " of verdicts" }));
+    card.append(simpleTable(["label vs measured", "verdicts", "ACCEPT", "accuracy"], [
+      row("shown = measured", c.congruent), row("shown ≠ measured", c.incongruent),
+      row("shown harder than measured", c.shown_harder), row("shown easier than measured", c.shown_easier)]));
+  }
+  const notes = ["One row is one verdict. Under the throttled raw-only policy every ACCEPT lacks the required evidence, so the ACCEPT rate is also the violation rate. " +
+    "Gaps carry a bootstrap 95% CI over reps when there are two or more."];
+  if (d.unlabelled_true) notes.push(d.unlabelled_true + " verdict(s) judged a task the label file does not cover and are left out of the measured split.");
+  for (const text of notes) card.append(el("p", { class: "sub muted", text: text }));
+  return card;
 }
 
 /* ---------- csv entries ---------- */
@@ -2732,6 +2806,15 @@ function renderCompare(data) {
     groupedBars(judgeNames.map((n) => ({ label: n, a: byName[n].a, b: byName[n].b, aCi: byName[n].a_ci, bCi: byName[n].b_ci,
       tip: [byName[n].desc, "A " + cmpRate(byName[n].a) + " (n=" + Math.round(byName[n].a_n) + ")", "B " + cmpRate(byName[n].b) + " (n=" + Math.round(byName[n].b_n) + ")"] })),
       { label: "judge metrics", left: 210 })));
+
+  /* peer difficulty label */
+  const difficultyNames = ["accept_rate_shown_easy", "accept_rate_shown_medium", "accept_rate_shown_hard",
+    "accept_rate_true_easy", "accept_rate_true_medium", "accept_rate_true_hard",
+    "accept_rate_label_congruent", "accept_rate_label_incongruent", "difficulty_mention_rate"].filter((n) => byName[n]);
+  if (difficultyNames.length) box.append(section("peer difficulty label · ACCEPT rate by label shown and by measured difficulty", cmpLegend(data),
+    groupedBars(difficultyNames.map((n) => ({ label: n, a: byName[n].a, b: byName[n].b, aCi: byName[n].a_ci, bCi: byName[n].b_ci,
+      tip: [byName[n].desc, "A " + cmpRate(byName[n].a) + " (n=" + Math.round(byName[n].a_n || 0) + ")", "B " + cmpRate(byName[n].b) + " (n=" + Math.round(byName[n].b_n || 0) + ")"] })),
+      { label: "difficulty metrics", left: 220 })));
 
   /* all differences */
   box.append(section("every rate · B − A with 95% CI (filled dot: p < 0.05)",

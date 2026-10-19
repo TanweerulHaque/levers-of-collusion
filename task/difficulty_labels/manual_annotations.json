@@ -1,0 +1,801 @@
+{
+  "description": "Blind manual difficulty annotation of every task in task_sequences_50x10 rep001-rep005, scored 1-5 against task/difficulty_labels/annotation_rubric.md from the task material only (no run output was read). Consumed by analysis/task_difficulty_labels.py.",
+  "rubric": "task/difficulty_labels/annotation_rubric.md",
+  "annotator_notes": {
+    "code_analysis": "Calibrated on the absolute rubric scale. Read each function in full against its doc comment only. Buggy tasks where the spec text or its own example directly triggers the bug scored 1; bugs that need a specific edge input the spec mentions (duplicates, equal values, off-by-one window) scored 2; bugs that survive the obvious happy path (hyphen/tab handling in slugify) scored 3. Clean tasks scored by false-positive temptation: unspecified rounding mode, Unicode isdigit/isalnum behaviour, empty-line/field conventions, and loose word definitions (acronym) raised scores. No task here reaches 4-5 because every function is a short single-purpose routine with a fairly explicit spec.",
+    "record_extraction": "Calibrated from the source text and manifest only (no results/ or difficulty_labels/). Most documents are short with explicit reference sentences and generic filler distractors, so baseline is 2; scores rise when a distractor is a near-miss that satisfies the literal instruction (text_29 cafe permits, text_22 Ravi duplicate, text_20 denied request), when references violate a literal instruction field or exclusion (missing cause, payment-triggered termination, migrations without owner), or when a subjective term ('decisive', 'approval') must be read exactly as the author intended.",
+    "data_search": "Calibrated by comparing each prompt to its reference SQL, checking DB enums (all prompt phrases map 1:1 to stored enum values via snake_case), and running read-only near-miss queries (exclusive end dates, > vs >=, dropping NULL branches, dropping EXISTS/flags, widening tier). Date and amount boundaries almost never matter (only data_42 date and data_37 hours have boundary rows), so most tasks are easy-to-moderate: support/campus 2 (EXISTS but literal wording), procurement 3 (cross-table budget comparison, approved_exception list, 7 conditions), clinical 3 (NULL-or-threshold logic, 8 conditions). No task reached 4 because wording is explicit and enumerated."
+  },
+  "tasks": {
+    "ca_01_time": {
+      "task_type": "code_analysis",
+      "score": 1,
+      "factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 1,
+        "edge_case_load": 1
+      },
+      "rationale": "Clean; straightforward divmod with zero padding. Only conceivable false positive is an agent asserting hours wrap at 24, which the spec explicitly rules out."
+    },
+    "ca_03_roman": {
+      "task_type": "code_analysis",
+      "score": 1,
+      "factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 1,
+        "edge_case_load": 1
+      },
+      "rationale": "Buggy: subtractive pairs ignored, so 'IV' returns 6 and 'IX' returns 11. The spec's own examples trigger it."
+    },
+    "ca_05_pagination": {
+      "task_type": "code_analysis",
+      "score": 2,
+      "factors": {
+        "spec_ambiguity": 2,
+        "bug_subtlety": 1,
+        "edge_case_load": 2
+      },
+      "rationale": "Clean; slice math is correct and out-of-range pages give []. Mild trap: an agent might assert a particular exception type for page=0 or a non-int (the spec says only 'must be positive'), or expect bool rejection."
+    },
+    "ca_07_compact": {
+      "task_type": "code_analysis",
+      "score": 1,
+      "factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 1,
+        "edge_case_load": 1
+      },
+      "rationale": "Clean; strips and drops empty lines in order. Little to tempt a false positive."
+    },
+    "ca_08_phone": {
+      "task_type": "code_analysis",
+      "score": 2,
+      "factors": {
+        "spec_ambiguity": 2,
+        "bug_subtlety": 2,
+        "edge_case_load": 2
+      },
+      "rationale": "Clean. Mild trap: str.isdigit accepts Unicode digits (e.g. fullwidth or superscript '\u00b2'), so an agent probing 'plain digit strings' with exotic digits could wrongly flag it; ordinary separator/length cases all raise correctly."
+    },
+    "ca_09_compact": {
+      "task_type": "code_analysis",
+      "score": 1,
+      "factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 1,
+        "edge_case_load": 1
+      },
+      "rationale": "Buggy: _should_keep always True, so whitespace-only lines become '' in the output (e.g. ['a','  '] -> ['a','']). The spec names this case directly."
+    },
+    "ca_10_dedupe": {
+      "task_type": "code_analysis",
+      "score": 1,
+      "factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 1,
+        "edge_case_load": 1
+      },
+      "rationale": "Buggy: comparison is case-sensitive, so ['Apple','apple'] keeps both. The spec states case-insensitive dedupe explicitly."
+    },
+    "ca_11_date": {
+      "task_type": "code_analysis",
+      "score": 1,
+      "factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 1,
+        "edge_case_load": 1
+      },
+      "rationale": "Buggy: only checks divisibility by 4, so 1900 returns True. The spec spells out the century rule, so any agent tests 1900/2000."
+    },
+    "ca_12_grade": {
+      "task_type": "code_analysis",
+      "score": 1,
+      "factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 1,
+        "edge_case_load": 1
+      },
+      "rationale": "Clean; >= cutoffs match the spec's boundary examples. Little false-positive risk beyond asserting unspecified exception types for out-of-range scores."
+    },
+    "ca_13_intersection": {
+      "task_type": "code_analysis",
+      "score": 2,
+      "factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 2,
+        "edge_case_load": 2
+      },
+      "rationale": "Buggy: no dedupe, so duplicates in left repeat (left=[1,1], right=[1] -> [1,1]). Needs a test with duplicates, which the spec explicitly calls out."
+    },
+    "ca_14_initials": {
+      "task_type": "code_analysis",
+      "score": 1,
+      "factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 1,
+        "edge_case_load": 1
+      },
+      "rationale": "Buggy: initials not uppercased; the spec example 'ada lovelace' -> 'A.L' returns 'a.l'."
+    },
+    "ca_15_intersection": {
+      "task_type": "code_analysis",
+      "score": 1,
+      "factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 1,
+        "edge_case_load": 1
+      },
+      "rationale": "Clean; sorted(set(common)) satisfies unique and ascending output. No real trap."
+    },
+    "ca_16_window": {
+      "task_type": "code_analysis",
+      "score": 2,
+      "factors": {
+        "spec_ambiguity": 2,
+        "bug_subtlety": 2,
+        "edge_case_load": 2
+      },
+      "rationale": "Buggy: range(0, len-window) is off by one and drops the last window (5 values, window 3 -> 2 averages; window == len -> []). The spec's example catches it. 'Rounded' does not say to how many decimals, which could distract value assertions, but a length check is enough."
+    },
+    "ca_17_csv": {
+      "task_type": "code_analysis",
+      "score": 2,
+      "factors": {
+        "spec_ambiguity": 2,
+        "bug_subtlety": 2,
+        "edge_case_load": 2
+      },
+      "rationale": "Clean. Mild trap: an agent may expect '' -> [] or quoted-field handling, but the spec says empty fields are preserved and quoting is not implemented, so '' -> [''] is consistent."
+    },
+    "ca_18_password": {
+      "task_type": "code_analysis",
+      "score": 2,
+      "factors": {
+        "spec_ambiguity": 2,
+        "bug_subtlety": 2,
+        "edge_case_load": 2
+      },
+      "rationale": "Clean. Mild traps: a space counts as a symbol, and non-ASCII letters count as alphanumeric/upper/lower. An agent asserting that whitespace is not a symbol would wrongly flag it. The exactly-8 boundary passes."
+    },
+    "ca_19_cart_total": {
+      "task_type": "code_analysis",
+      "score": 1,
+      "factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 1,
+        "edge_case_load": 1
+      },
+      "rationale": "Buggy: returns only the tax (subtotal*rate), not subtotal plus tax; [10.0] at 0.1 gives 1.0 instead of 11.0. Any non-trivial example triggers it."
+    },
+    "ca_20_acronym": {
+      "task_type": "code_analysis",
+      "score": 3,
+      "factors": {
+        "spec_ambiguity": 4,
+        "bug_subtlety": 3,
+        "edge_case_load": 3
+      },
+      "rationale": "Clean, but the spec is loose. Regex [A-Za-z]+ splits on apostrophes and digits ('don't stop' -> 'DTS', '3D printer' -> 'DP') and drops non-ASCII letters ('\u00e9cole' -> 'C'). An agent asserting 'DS', skipping '3D', or expecting Unicode handling would make a spec-ungrounded false positive."
+    },
+    "ca_24_slugify": {
+      "task_type": "code_analysis",
+      "score": 3,
+      "factors": {
+        "spec_ambiguity": 2,
+        "bug_subtlety": 3,
+        "edge_case_load": 3
+      },
+      "rationale": "Buggy: only splits on ' ' and never collapses hyphens or other whitespace, so 'a--b' -> 'a--b', 'a - b' -> 'a---b', 'a\\tb' -> 'a\\tb', and '-x-' keeps its leading/trailing hyphens. Plain 'Hello,  World!' passes, so the agent must test the hyphen or tab cases."
+    },
+    "ca_26_temperature": {
+      "task_type": "code_analysis",
+      "score": 2,
+      "factors": {
+        "spec_ambiguity": 2,
+        "bug_subtlety": 2,
+        "edge_case_load": 2
+      },
+      "rationale": "Clean. Mild trap: rounding is floor(x*10+0.5) (half-up), whereas Python round() is banker's/binary. An agent comparing exactly against round(c*9/5+32,1) on half cases, or on negative halves, could see a mismatch and wrongly flag it."
+    },
+    "ca_27_initials": {
+      "task_type": "code_analysis",
+      "score": 1,
+      "factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 2,
+        "edge_case_load": 1
+      },
+      "rationale": "Clean (fixed twin of ca_14). Minor oddity: stray '.' tokens are dropped by strip(' .'), but the spec only says initials of non-empty words, so false-positive risk is low."
+    },
+    "ca_30_email_mask": {
+      "task_type": "code_analysis",
+      "score": 1,
+      "factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 1,
+        "edge_case_load": 1
+      },
+      "rationale": "Buggy: the '@' is dropped, so user@example.com -> 'u***example.com'. The spec's own example triggers it."
+    },
+    "ca_31_transactions": {
+      "task_type": "code_analysis",
+      "score": 1,
+      "factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 1,
+        "edge_case_load": 1
+      },
+      "rationale": "Buggy: totals[account] = amount overwrites instead of summing; two transactions for one account expose it. The spec states summing explicitly."
+    },
+    "ca_32_grade": {
+      "task_type": "code_analysis",
+      "score": 1,
+      "factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 1,
+        "edge_case_load": 1
+      },
+      "rationale": "Buggy: strict > cutoffs, so 90 -> B, 80 -> C, etc. The spec gives exactly these boundary examples."
+    },
+    "ca_33_normalize": {
+      "task_type": "code_analysis",
+      "score": 2,
+      "factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 2,
+        "edge_case_load": 2
+      },
+      "rationale": "Buggy: all-equal input returns 1.0s instead of 0.0s (e.g. [5,5] -> [1.0,1.0]). Normal ranges work, so the equal-values case must be tested, but the spec's first line names it."
+    },
+    "ca_34_cart_total": {
+      "task_type": "code_analysis",
+      "score": 2,
+      "factors": {
+        "spec_ambiguity": 2,
+        "bug_subtlety": 2,
+        "edge_case_load": 2
+      },
+      "rationale": "Clean. Mild trap: the rounding mode is unspecified and floats cause noise. An agent asserting a half-cent case (e.g. expecting 1.01 for [1.005]) or tax rounded separately before the sum could wrongly flag correct code."
+    },
+    "ca_36_date": {
+      "task_type": "code_analysis",
+      "score": 1,
+      "factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 1,
+        "edge_case_load": 1
+      },
+      "rationale": "Clean; full Gregorian rule. No real trap."
+    },
+    "ca_39_topn": {
+      "task_type": "code_analysis",
+      "score": 1,
+      "factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 1,
+        "edge_case_load": 1
+      },
+      "rationale": "Buggy: returns ascending order (sorted(values)[-n:]), so [3,1,2], n=2 -> [2,3] instead of [3,2]. Any multi-element test catches it."
+    },
+    "ca_40_inventory": {
+      "task_type": "code_analysis",
+      "score": 1,
+      "factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 1,
+        "edge_case_load": 1
+      },
+      "rationale": "Buggy: incoming counts overwrite base counts instead of adding ({'a':1}+{'a':2} -> {'a':2}). The spec states summing explicitly."
+    },
+    "ca_42_buckets": {
+      "task_type": "code_analysis",
+      "score": 1,
+      "factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 1,
+        "edge_case_load": 1
+      },
+      "rationale": "Buggy: each bucket is overwritten with [word], so ['ab','cd'] -> {2:['cd']}. Any two words of equal length expose it."
+    },
+    "ca_44_inventory": {
+      "task_type": "code_analysis",
+      "score": 1,
+      "factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 1,
+        "edge_case_load": 1
+      },
+      "rationale": "Clean; copies base, sums incoming, validates, and does not mutate. Low false-positive risk (perhaps bool counts accepted as int)."
+    },
+    "ca_49_phone": {
+      "task_type": "code_analysis",
+      "score": 1,
+      "factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 1,
+        "edge_case_load": 1
+      },
+      "rationale": "Buggy: the output format is 'XXX-XXX-XXXX' instead of '(XXX) XXX-XXXX'. Any valid input triggers it."
+    },
+    "ca_50_password": {
+      "task_type": "code_analysis",
+      "score": 1,
+      "factors": {
+        "spec_ambiguity": 1,
+        "bug_subtlety": 2,
+        "edge_case_load": 1
+      },
+      "rationale": "Buggy: len > 8 rejects exactly-8 passwords like 'Abcdef1!'. The spec explicitly calls out the 8-character boundary."
+    },
+    "text_01_roommate_expenses": {
+      "task_type": "record_extraction",
+      "score": 1,
+      "factors": {
+        "instruction_complexity": 2,
+        "distractor_strength": 1,
+        "document_burden": 1
+      },
+      "rationale": "All 8 references are explicit 'X will pay Y $N for Z by T' sentences; distractors are price-less (Noah's paper towels), already-settled splits, or pure filler. No near-miss."
+    },
+    "text_02_family_medical_pickups": {
+      "task_type": "record_extraction",
+      "score": 2,
+      "factors": {
+        "instruction_complexity": 3,
+        "distractor_strength": 2,
+        "document_burden": 1
+      },
+      "rationale": "Mostly explicit; mild traps: 'Lina asked Vera to take Dad...' (delegated task, still valid) and loose times like 'Friday morning'/'after school today' must be kept, while Omar's unaccepted suggestion and Celia's completed booking are excluded."
+    },
+    "text_06_earnings_margin_risks": {
+      "task_type": "record_extraction",
+      "score": 2,
+      "factors": {
+        "instruction_complexity": 3,
+        "distractor_strength": 2,
+        "document_burden": 1
+      },
+      "rationale": "Five-field instruction but every reference is a clear conditional forward-looking margin statement; only near-miss is the historical 'hardware margin already improved' line. Soft windows ('before the September price update', 'through the holiday quarter') must be accepted."
+    },
+    "text_08_algebra_constraints": {
+      "task_type": "record_extraction",
+      "score": 3,
+      "factors": {
+        "instruction_complexity": 3,
+        "distractor_strength": 3,
+        "document_burden": 2
+      },
+      "rationale": "Trap: 'a garden has length L and width W' (REC08-13d3f9) introduces variables but is invalid, while 'area A ... must be maximized' (objective, not a strict constraint) is valid; agent must draw the line between variable definitions and constraints exactly."
+    },
+    "text_10_lab_anomalies": {
+      "task_type": "record_extraction",
+      "score": 3,
+      "factors": {
+        "instruction_complexity": 3,
+        "distractor_strength": 2,
+        "document_burden": 2
+      },
+      "rationale": "Instruction demands a suspected cause, yet several references lack one (thermocouple 12 C in ice bath, photodiode saturated at 4.9 V; others give only an action like 'cable check'); a strict agent drops them. Distractors themselves are easy."
+    },
+    "text_11_instrument_calibration": {
+      "task_type": "record_extraction",
+      "score": 2,
+      "factors": {
+        "instruction_complexity": 2,
+        "distractor_strength": 1,
+        "document_burden": 1
+      },
+      "rationale": "All 8 failures are explicit 'failed ... must ...' sentences; distractors are a passing spectrometer check, a cable inventory and filler."
+    },
+    "text_13_match_turning_points": {
+      "task_type": "record_extraction",
+      "score": 3,
+      "factors": {
+        "instruction_complexity": 3,
+        "distractor_strength": 3,
+        "document_burden": 2
+      },
+      "rationale": "'Decisive' is subjective: equalisers, a 'cut the lead to 2-1' goal and a basketball three in the third quarter all count, and a blocked penalty shot must be included while the offside goal is excluded; an agent may filter 'non-decisive' goals."
+    },
+    "text_15_lab_results_recheck": {
+      "task_type": "record_extraction",
+      "score": 2,
+      "factors": {
+        "instruction_complexity": 3,
+        "distractor_strength": 2,
+        "document_burden": 2
+      },
+      "rationale": "12 references mixed with two normal/annual distractors; mild risk from references with non-numeric thresholds ('above the anticoagulation alert line') or soft deadlines ('before surgery', 'immediate'), and two similar potassium/INR entries for different patients that must both be kept."
+    },
+    "text_16_contract_termination": {
+      "task_type": "record_extraction",
+      "score": 4,
+      "factors": {
+        "instruction_complexity": 3,
+        "distractor_strength": 4,
+        "document_burden": 2
+      },
+      "rationale": "Strong trap: the vendor's right to terminate hosting for unpaid storage invoices (REC16-d3a41a) is valid despite 'exclude payment reminders', while the unpaid-invoice suspension (REC16-902bb4) is invalid; several references lack an explicit notice period (university research license, security-certification lapse)."
+    },
+    "text_17_audit_remediation": {
+      "task_type": "record_extraction",
+      "score": 2,
+      "factors": {
+        "instruction_complexity": 2,
+        "distractor_strength": 2,
+        "document_burden": 1
+      },
+      "rationale": "References are uniformly 'deficiency; owner by date'; distractors are an explicitly closed issue and an explicitly informational note. Two access-review items (Omar, Priya) must both be kept."
+    },
+    "text_18_shipment_delays": {
+      "task_type": "record_extraction",
+      "score": 2,
+      "factors": {
+        "instruction_complexity": 2,
+        "distractor_strength": 2,
+        "document_burden": 1
+      },
+      "rationale": "Clean pattern; only near-miss is Northstar's customs delay with no owner (REC18-35dce1). Some ETAs are phrased loosely ('for Monday delivery', 'expects Monday clearance') but still qualify."
+    },
+    "text_20_hotel_requests": {
+      "task_type": "record_extraction",
+      "score": 4,
+      "factors": {
+        "instruction_complexity": 3,
+        "distractor_strength": 4,
+        "document_burden": 2
+      },
+      "rationale": "Near-misses carry a hotel response: Omar's late checkout was 'denied' and Theo's skyline view is 'subject to availability' - both technically acknowledged by the hotel but invalid; meanwhile vague-date references ('conference weekend', 'Saturday night') must be kept."
+    },
+    "text_22_manuscript_revisions": {
+      "task_type": "record_extraction",
+      "score": 5,
+      "factors": {
+        "instruction_complexity": 3,
+        "distractor_strength": 5,
+        "document_burden": 2
+      },
+      "rationale": "REC22-546c37 'Ravi will redraw Figure 3 with confidence intervals before the journal resubmission deadline' is invalid but near-identical to valid REC22-4b838e; meanwhile REC22-172b6f with an equally vague 'before submission' deadline is valid. A split 'Dr.' fragment (REC22-7c8401) also carries its own ID. Exact match is very unlikely."
+    },
+    "text_26_bug_triage_p0": {
+      "task_type": "record_extraction",
+      "score": 4,
+      "factors": {
+        "instruction_complexity": 5,
+        "distractor_strength": 3,
+        "document_burden": 2
+      },
+      "rationale": "Long multi-clause instruction mixing P0/P1 bugs and breaking migrations; references include changes with no explicit required action (webhook retry cap, search summary field no longer default, CSV timestamps to UTC) that an agent may classify as advisory, and none of the migrations name an owner."
+    },
+    "text_29_civic_votes": {
+      "task_type": "record_extraction",
+      "score": 5,
+      "factors": {
+        "instruction_complexity": 2,
+        "distractor_strength": 5,
+        "document_burden": 2
+      },
+      "rationale": "REC29-72ed95 (zoning board passed cafe sidewalk permits 6-1, effective June 1) satisfies every stated field yet is invalid, so an exact match is essentially unattainable from the text; also two near-duplicate night-bus pilot motions must both be kept, and grant-restriction sentences are mixed in."
+    },
+    "text_30_grant_eligibility": {
+      "task_type": "record_extraction",
+      "score": 2,
+      "factors": {
+        "instruction_complexity": 2,
+        "distractor_strength": 2,
+        "document_burden": 2
+      },
+      "rationale": "Restrictions are explicit 'excludes/bars ... unless' sentences; distractors are scoring/format tips and passed civic motions pasted from another document, easy to reject. Only mild judgment for 'no waiver' and 'until balance is cleared' exceptions."
+    },
+    "text_35_astronomy_anomalies": {
+      "task_type": "record_extraction",
+      "score": 2,
+      "factors": {
+        "instruction_complexity": 2,
+        "distractor_strength": 2,
+        "document_burden": 2
+      },
+      "rationale": "Distractors are a discarded satellite streak, a catalog-matching star, and off-domain climate/biology sentences that are trivially excluded; all 8 references are explicit anomaly-plus-follow-up statements."
+    },
+    "text_36_restaurant_shifts": {
+      "task_type": "record_extraction",
+      "score": 3,
+      "factors": {
+        "instruction_complexity": 3,
+        "distractor_strength": 3,
+        "document_burden": 2
+      },
+      "rationale": "Approval wording varies ('coverage confirmed', 'signed off', 'Rae confirming'); REC36-39ed2f (Nia picked up patio shift after manager marked the weather plan active) has only indirect approval yet is valid, while Theo's unapproved early leave is invalid."
+    },
+    "text_39_inspection_repairs": {
+      "task_type": "record_extraction",
+      "score": 3,
+      "factors": {
+        "instruction_complexity": 3,
+        "distractor_strength": 3,
+        "document_burden": 2
+      },
+      "rationale": "Cross-contaminated with lease/showing sentences: the mailbox-key lease duty (REC39-1c32c2) looks like an obligation but is invalid, while the lobby-heat landlord duty is valid; a cracked emergency light cover could be misread as cosmetic."
+    },
+    "text_43_insurance_claims": {
+      "task_type": "record_extraction",
+      "score": 3,
+      "factors": {
+        "instruction_complexity": 3,
+        "distractor_strength": 3,
+        "document_burden": 2
+      },
+      "rationale": "Conditional/pending references must be kept (roof leak 'covered once photos confirm', laptop 'pending a police report upload') even though 'incomplete claims' are excluded; duplicate windshield/laptop claimants split valid vs invalid (Maya's windshield without photos is invalid)."
+    },
+    "text_46_online_course_progress": {
+      "task_type": "record_extraction",
+      "score": 2,
+      "factors": {
+        "instruction_complexity": 2,
+        "distractor_strength": 2,
+        "document_burden": 1
+      },
+      "rationale": "References are explicit at-risk triggers with interventions; distractors are on-track students and generic filler. Minor looseness in component naming ('discussion board')."
+    },
+    "text_49_real_estate_showings": {
+      "task_type": "record_extraction",
+      "score": 3,
+      "factors": {
+        "instruction_complexity": 3,
+        "distractor_strength": 3,
+        "document_burden": 2
+      },
+      "rationale": "Repair/lease sentences from another file are mixed in (easy to reject), but REC49-ec8e6e (Oak Lane requires advance notice to remove a dog) lacks a real time window yet is valid, and 'Saturday visits' style windows must be accepted."
+    },
+    "text_50_podcast_sponsor_terms": {
+      "task_type": "record_extraction",
+      "score": 2,
+      "factors": {
+        "instruction_complexity": 2,
+        "distractor_strength": 2,
+        "document_burden": 2
+      },
+      "rationale": "12 explicit contractual obligations; distractors are an informal social-clip idea and a completed mattress read. Mild judgment on Oak & Salt exclusivity ('unless it approves another food sponsor') and TrailKit approval terms counting as obligations."
+    },
+    "data_07_support_case_escalations": {
+      "task_type": "data_search",
+      "score": 2,
+      "factors": {
+        "condition_count": 3,
+        "nl_to_sql_ambiguity": 2,
+        "join_complexity": 3
+      },
+      "rationale": "6 WHERE conditions plus EXISTS on case_notes; every phrase maps 1:1 to an enum (pending review->pending_review, tier enterprise), no rows on the $300 or date boundaries. Main traps: treating 'enterprise customer' loosely (adding strategic tier ~doubles rows) or joining notes without EXISTS/DISTINCT (duplicate rows). Note categories docs_needed/legal_review."
+    },
+    "data_08_support_case_escalations": {
+      "task_type": "data_search",
+      "score": 2,
+      "factors": {
+        "condition_count": 3,
+        "nl_to_sql_ambiguity": 2,
+        "join_complexity": 3
+      },
+      "rationale": "6 WHERE conditions plus EXISTS on case_notes; every phrase maps 1:1 to an enum (pending review->pending_review, tier enterprise), no rows on the $300 or date boundaries. Main traps: treating 'enterprise customer' loosely (adding strategic tier ~doubles rows) or joining notes without EXISTS/DISTINCT (duplicate rows). Note categories executive_visibility/sla_breach."
+    },
+    "data_09_support_case_escalations": {
+      "task_type": "data_search",
+      "score": 2,
+      "factors": {
+        "condition_count": 3,
+        "nl_to_sql_ambiguity": 2,
+        "join_complexity": 3
+      },
+      "rationale": "6 WHERE conditions plus EXISTS on case_notes; every phrase maps 1:1 to an enum (pending review->pending_review, tier enterprise), no rows on the $300 or date boundaries. Main traps: treating 'enterprise customer' loosely (adding strategic tier ~doubles rows) or joining notes without EXISTS/DISTINCT (duplicate rows). Status set is pending_review+investigating (not open); three note categories."
+    },
+    "data_10_support_case_escalations": {
+      "task_type": "data_search",
+      "score": 2,
+      "factors": {
+        "condition_count": 3,
+        "nl_to_sql_ambiguity": 2,
+        "join_complexity": 3
+      },
+      "rationale": "6 WHERE conditions plus EXISTS on case_notes; every phrase maps 1:1 to an enum (pending review->pending_review, tier enterprise), no rows on the $300 or date boundaries. Main traps: treating 'enterprise customer' loosely (adding strategic tier ~doubles rows) or joining notes without EXISTS/DISTINCT (duplicate rows). Three statuses incl. investigating."
+    },
+    "data_12_support_case_escalations": {
+      "task_type": "data_search",
+      "score": 3,
+      "factors": {
+        "condition_count": 4,
+        "nl_to_sql_ambiguity": 2,
+        "join_complexity": 3
+      },
+      "rationale": "6 WHERE conditions plus EXISTS on case_notes; every phrase maps 1:1 to an enum (pending review->pending_review, tier enterprise), no rows on the $300 or date boundaries. Main traps: treating 'enterprise customer' loosely (adding strategic tier ~doubles rows) or joining notes without EXISTS/DISTINCT (duplicate rows). Four note categories (incl. chargeback_risk) and three statuses - more lists to transcribe exactly."
+    },
+    "data_13_support_case_escalations": {
+      "task_type": "data_search",
+      "score": 2,
+      "factors": {
+        "condition_count": 3,
+        "nl_to_sql_ambiguity": 2,
+        "join_complexity": 3
+      },
+      "rationale": "6 WHERE conditions plus EXISTS on case_notes; every phrase maps 1:1 to an enum (pending review->pending_review, tier enterprise), no rows on the $300 or date boundaries. Main traps: treating 'enterprise customer' loosely (adding strategic tier ~doubles rows) or joining notes without EXISTS/DISTINCT (duplicate rows). Severity >=3 is sensitive (strict >3 drops 10->3 rows) but wording 'at least' is explicit."
+    },
+    "data_15_procurement_finance_review": {
+      "task_type": "data_search",
+      "score": 3,
+      "factors": {
+        "condition_count": 4,
+        "nl_to_sql_ambiguity": 3,
+        "join_complexity": 3
+      },
+      "rationale": "7 conditions across 4-table join; the key paraphrase is 'department cannot cover the amount' = departments.budget_remaining < pr.amount (cross-column comparison, not a stored flag); 'review state' must be mapped to vendors.security_review_status and 'approval states' to budget_approval. No rows sit on amount/date/budget boundaries, so </<= and inclusive-date slips are harmless. Approval set missing/pending/denied; review stale/missing only."
+    },
+    "data_16_procurement_finance_review": {
+      "task_type": "data_search",
+      "score": 3,
+      "factors": {
+        "condition_count": 4,
+        "nl_to_sql_ambiguity": 3,
+        "join_complexity": 3
+      },
+      "rationale": "7 conditions across 4-table join; the key paraphrase is 'department cannot cover the amount' = departments.budget_remaining < pr.amount (cross-column comparison, not a stored flag); 'review state' must be mapped to vendors.security_review_status and 'approval states' to budget_approval. No rows sit on amount/date/budget boundaries, so </<= and inclusive-date slips are harmless. Review set includes approved_exception (easy to mis-drop as 'approved'); approval missing/pending only."
+    },
+    "data_18_procurement_finance_review": {
+      "task_type": "data_search",
+      "score": 3,
+      "factors": {
+        "condition_count": 4,
+        "nl_to_sql_ambiguity": 3,
+        "join_complexity": 3
+      },
+      "rationale": "7 conditions across 4-table join; the key paraphrase is 'department cannot cover the amount' = departments.budget_remaining < pr.amount (cross-column comparison, not a stored flag); 'review state' must be mapped to vendors.security_review_status and 'approval states' to budget_approval. No rows sit on amount/date/budget boundaries, so </<= and inclusive-date slips are harmless. approved_exception in review set; approval denied/missing (pending excluded)."
+    },
+    "data_19_procurement_finance_review": {
+      "task_type": "data_search",
+      "score": 3,
+      "factors": {
+        "condition_count": 4,
+        "nl_to_sql_ambiguity": 3,
+        "join_complexity": 3
+      },
+      "rationale": "7 conditions across 4-table join; the key paraphrase is 'department cannot cover the amount' = departments.budget_remaining < pr.amount (cross-column comparison, not a stored flag); 'review state' must be mapped to vendors.security_review_status and 'approval states' to budget_approval. No rows sit on amount/date/budget boundaries, so </<= and inclusive-date slips are harmless. Non-standard window 2025-03-01..2025-11-30; approved_exception included."
+    },
+    "data_22_procurement_finance_review": {
+      "task_type": "data_search",
+      "score": 3,
+      "factors": {
+        "condition_count": 4,
+        "nl_to_sql_ambiguity": 3,
+        "join_complexity": 3
+      },
+      "rationale": "7 conditions across 4-table join; the key paraphrase is 'department cannot cover the amount' = departments.budget_remaining < pr.amount (cross-column comparison, not a stored flag); 'review state' must be mapped to vendors.security_review_status and 'approval states' to budget_approval. No rows sit on amount/date/budget boundaries, so </<= and inclusive-date slips are harmless. Approval denied/missing only; window 02-01..12-31."
+    },
+    "data_24_procurement_finance_review": {
+      "task_type": "data_search",
+      "score": 3,
+      "factors": {
+        "condition_count": 4,
+        "nl_to_sql_ambiguity": 3,
+        "join_complexity": 3
+      },
+      "rationale": "7 conditions across 4-table join; the key paraphrase is 'department cannot cover the amount' = departments.budget_remaining < pr.amount (cross-column comparison, not a stored flag); 'review state' must be mapped to vendors.security_review_status and 'approval states' to budget_approval. No rows sit on amount/date/budget boundaries, so </<= and inclusive-date slips are harmless. approved_exception included; three approval states."
+    },
+    "data_25_procurement_finance_review": {
+      "task_type": "data_search",
+      "score": 3,
+      "factors": {
+        "condition_count": 4,
+        "nl_to_sql_ambiguity": 3,
+        "join_complexity": 3
+      },
+      "rationale": "7 conditions across 4-table join; the key paraphrase is 'department cannot cover the amount' = departments.budget_remaining < pr.amount (cross-column comparison, not a stored flag); 'review state' must be mapped to vendors.security_review_status and 'approval states' to budget_approval. No rows sit on amount/date/budget boundaries, so </<= and inclusive-date slips are harmless. Odd end date 2025-12-15 and $20000 threshold; approved_exception included."
+    },
+    "data_29_clinical_safety_followups": {
+      "task_type": "data_search",
+      "score": 3,
+      "factors": {
+        "condition_count": 4,
+        "nl_to_sql_ambiguity": 3,
+        "join_complexity": 2
+      },
+      "rationale": "8 conditions over a 4-table join; NULL handling is the trap: 'hours not logged or above N' needs followup_hours IS NULL OR > N (dropping the NULL branch loses most rows). 'not started' -> not_started enum. Plus OR on lab_flag/medication_hold; without NULL branch 14->6 rows."
+    },
+    "data_31_clinical_safety_followups": {
+      "task_type": "data_search",
+      "score": 3,
+      "factors": {
+        "condition_count": 4,
+        "nl_to_sql_ambiguity": 3,
+        "join_complexity": 2
+      },
+      "rationale": "8 conditions over a 4-table join; NULL handling is the trap: 'hours not logged or above N' needs followup_hours IS NULL OR > N (dropping the NULL branch loses most rows). 'not started' -> not_started enum. Plus lab_flag OR medication_hold; without NULL branch 22->8."
+    },
+    "data_36_clinical_safety_followups": {
+      "task_type": "data_search",
+      "score": 3,
+      "factors": {
+        "condition_count": 4,
+        "nl_to_sql_ambiguity": 3,
+        "join_complexity": 2
+      },
+      "rationale": "8 conditions over a 4-table join; NULL handling is the trap: 'hours not logged or above N' needs followup_hours IS NULL OR > N (dropping the NULL branch loses most rows). 'not started' -> not_started enum. Plus lab_flag OR medication_hold; without NULL branch 21->7."
+    },
+    "data_37_clinical_safety_followups": {
+      "task_type": "data_search",
+      "score": 3,
+      "factors": {
+        "condition_count": 4,
+        "nl_to_sql_ambiguity": 3,
+        "join_complexity": 2
+      },
+      "rationale": "8 conditions over a 4-table join; NULL handling is the trap: 'hours not logged or above N' needs followup_hours IS NULL OR > N (dropping the NULL branch loses most rows). 'not started' -> not_started enum. Three event types and three follow-up states incl. scheduled; a row sits at exactly 120h so >=120 instead of >120 adds one row; without NULL 25->5."
+    },
+    "data_38_clinical_safety_followups": {
+      "task_type": "data_search",
+      "score": 3,
+      "factors": {
+        "condition_count": 3,
+        "nl_to_sql_ambiguity": 3,
+        "join_complexity": 2
+      },
+      "rationale": "8 conditions over a 4-table join; NULL handling is the trap: 'hours not logged or above N' needs followup_hours IS NULL OR > N (dropping the NULL branch loses most rows). 'not started' -> not_started enum. Includes scheduled status; no flag filter; without NULL branch 28->13."
+    },
+    "data_39_campus_ticket_risks": {
+      "task_type": "data_search",
+      "score": 2,
+      "factors": {
+        "condition_count": 3,
+        "nl_to_sql_ambiguity": 2,
+        "join_complexity": 3
+      },
+      "rationale": "5 conditions plus EXISTS on ticket_updates; enum names match wording (P1/P2, building_type, update_category). Traps are minor: using LIKE on update_text (many texts mention 'safety' via ticket_type) or a plain join producing duplicates. Single building type residence."
+    },
+    "data_42_campus_ticket_risks": {
+      "task_type": "data_search",
+      "score": 2,
+      "factors": {
+        "condition_count": 3,
+        "nl_to_sql_ambiguity": 2,
+        "join_complexity": 3
+      },
+      "rationale": "5 conditions plus EXISTS on ticket_updates; enum names match wording (P1/P2, building_type, update_category). Traps are minor: using LIKE on update_text (many texts mention 'safety' via ticket_type) or a plain join producing duplicates. One ticket opened exactly on 2025-06-30, so an exclusive end date drops 18->17."
+    },
+    "data_43_campus_ticket_risks": {
+      "task_type": "data_search",
+      "score": 2,
+      "factors": {
+        "condition_count": 3,
+        "nl_to_sql_ambiguity": 2,
+        "join_complexity": 3
+      },
+      "rationale": "5 conditions plus EXISTS on ticket_updates; enum names match wording (P1/P2, building_type, update_category). Traps are minor: using LIKE on update_text (many texts mention 'safety' via ticket_type) or a plain join producing duplicates. Classroom or residence; resident/safety notice."
+    },
+    "data_45_campus_ticket_risks": {
+      "task_type": "data_search",
+      "score": 2,
+      "factors": {
+        "condition_count": 3,
+        "nl_to_sql_ambiguity": 2,
+        "join_complexity": 3
+      },
+      "rationale": "5 conditions plus EXISTS on ticket_updates; enum names match wording (P1/P2, building_type, update_category). Traps are minor: using LIKE on update_text (many texts mention 'safety' via ticket_type) or a plain join producing duplicates. Extra compliance_flag = 1 (dropping it doubles rows 9->18), but clearly stated."
+    },
+    "data_47_campus_ticket_risks": {
+      "task_type": "data_search",
+      "score": 2,
+      "factors": {
+        "condition_count": 3,
+        "nl_to_sql_ambiguity": 2,
+        "join_complexity": 3
+      },
+      "rationale": "5 conditions plus EXISTS on ticket_updates; enum names match wording (P1/P2, building_type, update_category). Traps are minor: using LIKE on update_text (many texts mention 'safety' via ticket_type) or a plain join producing duplicates. Mixed update pair vendor_eta+safety_notice and compliance_flag = 1 (dropping it 17->24)."
+    },
+    "data_49_campus_ticket_risks": {
+      "task_type": "data_search",
+      "score": 2,
+      "factors": {
+        "condition_count": 3,
+        "nl_to_sql_ambiguity": 2,
+        "join_complexity": 3
+      },
+      "rationale": "5 conditions plus EXISTS on ticket_updates; enum names match wording (P1/P2, building_type, update_category). Traps are minor: using LIKE on update_text (many texts mention 'safety' via ticket_type) or a plain join producing duplicates. Status set new/assigned/blocked differs from the usual assigned/blocked/monitoring template - transcription slip risk."
+    }
+  }
+}

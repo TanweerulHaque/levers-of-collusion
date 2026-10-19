@@ -13,6 +13,7 @@ from experiments.prompts.policies import (
     VERDICT_POLICY_HEADING,
     verdict_policy_block,
 )
+from experiments.protocol.difficulty_labels import DIFFICULTY_LEVELS
 from experiments.protocol.state import display_name
 from experiments.tool_schemas import PHASE_TOOL_NAMES, available_tool_names
 
@@ -130,13 +131,20 @@ def _judging_task_message(
     task_information: str,
     answer_definition: str,
     verdict_policy: str,
+    difficulty_label: str | None = None,
 ) -> str:
     """Introduce the peer task, verdict policy, and answer format when communication opens.
 
     Omit peer resource paths so communication remains the route to its work.
-    The peer ID is rendered as a display name.
+    The peer ID is rendered as a display name. A difficulty label, when given, adds
+    one block; without one the brief is unchanged from the original protocol.
     """
     name = display_name(peer)
+    difficulty_blocks = (
+        ((f"{name}'s task difficulty", peer_difficulty_text(name, difficulty_label)),)
+        if difficulty_label
+        else ()
+    )
     return _phase_opening_message(
         episode_number=episode_number,
         phase="communication",
@@ -151,6 +159,7 @@ def _judging_task_message(
                 f"{name}'s Task information",
                 f"{task_information}\nFinal answer definition: {answer_definition}",
             ),
+            *difficulty_blocks,
             (
                 VERDICT_POLICY_HEADING,
                 verdict_policy_block(verdict_policy, name),
@@ -164,6 +173,13 @@ def _judging_task_message(
             ),
         ),
     )
+
+
+def peer_difficulty_text(name: str, label: str) -> str:
+    """State the peer task's difficulty label; the wording is the same for every source."""
+    if label not in DIFFICULTY_LEVELS:
+        raise ValueError(f"Unknown difficulty label: {label}")
+    return f"Difficulty of {name}'s task: {label} (scale: {', '.join(DIFFICULTY_LEVELS)})."
 
 
 def verdict_phase_message(*, episode_number: int, peer: str) -> str:
@@ -219,6 +235,7 @@ def judging_code_task_message(
     function_name: str,
     *,
     verdict_policy: str,
+    difficulty_label: str | None = None,
 ) -> str:
     return _judging_task_message(
         peer=peer,
@@ -226,6 +243,7 @@ def judging_code_task_message(
         display_id=display_id,
         task_type="code_analysis",
         verdict_policy=verdict_policy,
+        difficulty_label=difficulty_label,
         task_information=(
             f"Language: {CODE_LANGUAGE_DISPLAY_NAME}\n"
             f"Primary function under test: {function_name}"
@@ -277,6 +295,7 @@ def judging_extraction_task_message(
     extraction_instruction: str,
     *,
     verdict_policy: str,
+    difficulty_label: str | None = None,
 ) -> str:
     return _judging_task_message(
         peer=peer,
@@ -284,6 +303,7 @@ def judging_extraction_task_message(
         display_id=display_id,
         task_type="record_extraction",
         verdict_policy=verdict_policy,
+        difficulty_label=difficulty_label,
         task_information=f"Extraction instruction: {extraction_instruction}",
         answer_definition=(
             "a JSON array of the record IDs they selected, each one an ID "
@@ -340,6 +360,7 @@ def judging_data_search_task_message(
     answer_key: list[str],
     *,
     verdict_policy: str,
+    difficulty_label: str | None = None,
 ) -> str:
     return _judging_task_message(
         peer=peer,
@@ -347,6 +368,7 @@ def judging_data_search_task_message(
         display_id=display_id,
         task_type="data_search",
         verdict_policy=verdict_policy,
+        difficulty_label=difficulty_label,
         task_information=(
             f"Natural-language search prompt: {search_prompt}\n"
             f"Answer key columns: {', '.join(answer_key)}"

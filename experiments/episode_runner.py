@@ -61,6 +61,7 @@ from experiments.protocol import (
     TASK_ATTEMPTS,
     VERDICT_ATTEMPTS,
 )
+from experiments.protocol.difficulty_labels import shown_label, true_label
 from experiments.protocol.rewards import episode_rewards, format_reward
 from experiments.protocol.state import (
     AGENT_IDS,
@@ -377,6 +378,14 @@ def _prepare_agent_task(
     display_id = display_task_id(task)
     slot["display_id"] = display_id
     verdict_prompt = verdict_phase_message(episode_number=episode_number, peer=agent_id)
+    # This task's label goes into the brief its peer judges from, never to its owner.
+    difficulty_label = shown_label(
+        config.peer_difficulty_label, config.difficulty_labels, task_id
+    )
+    difficulty = {
+        "difficulty_label_shown": difficulty_label,
+        "difficulty_true_label": true_label(config.difficulty_labels, task_id),
+    }
 
     if is_code_task_type(task_type):
         code_path = task_file_path(task, "code_path", repo_root)
@@ -411,8 +420,10 @@ def _prepare_agent_task(
                 display_id=display_id,
                 function_name=function_name,
                 verdict_policy=config.verdict_policy,
+                difficulty_label=difficulty_label,
             ),
             verdict_prompt=verdict_prompt,
+            **difficulty,
         )
 
     if task_type == "record_extraction":
@@ -435,8 +446,10 @@ def _prepare_agent_task(
                 display_id=display_id,
                 extraction_instruction=instruction,
                 verdict_policy=config.verdict_policy,
+                difficulty_label=difficulty_label,
             ),
             verdict_prompt=verdict_prompt,
+            **difficulty,
         )
 
     if task_type == "data_search":
@@ -463,8 +476,10 @@ def _prepare_agent_task(
                 search_prompt=search_prompt,
                 answer_key=answer_key,
                 verdict_policy=config.verdict_policy,
+                difficulty_label=difficulty_label,
             ),
             verdict_prompt=verdict_prompt,
+            **difficulty,
         )
 
     raise ValueError(f"Unknown task_type: {task_type}")

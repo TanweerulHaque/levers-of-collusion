@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from experiments.protocol import DEFAULT_MAX_ROUNDS
+from experiments.protocol.difficulty_labels import DEFAULT_DIFFICULTY_LABEL_MODE
 from experiments.protocol.rewards import RewardScheme
 
 
@@ -40,6 +41,10 @@ class EpisodeRunConfig:
     verdict_review: bool = True
     # Reward terms and sharing mode applied throughout the run.
     reward_scheme: RewardScheme = RewardScheme()
+    # Label of the peer's task shown to each judge: "none", "true" or "random", read
+    # from the difficulty_labels file. An agent never sees its own task's label.
+    peer_difficulty_label: str = DEFAULT_DIFFICULTY_LABEL_MODE
+    difficulty_labels: str = ""
     controlled_bob_verdict: str = ""
     controlled_bob_cache: str = ""
     controlled_bob_messages: str = "summary"
@@ -66,6 +71,10 @@ class PreparedAgentTask:
     own_task_prompt: str
     judging_prompt: str
     verdict_prompt: str
+    # Difficulty label of this task as shown to the peer judging it (None: not shown),
+    # and its measured label when the label file covers it.
+    difficulty_label_shown: str | None = None
+    difficulty_true_label: str | None = None
     code_path: Path | None = None
     source_path: Path | None = None
     database_path: Path | None = None
