@@ -1578,14 +1578,33 @@ function influenceCard(inf, title) {
     gap.value === null));
   tiles.append(tile("Bob matches Alice", pct1(m.follower_matches_leader.rate), count(m.follower_matches_leader)));
   card.append(tiles);
+  card.append(el("p", { class: "sub muted", text: inf.legend + " Hover a metric for the precise definition." }));
   const names = Object.keys(m).filter((n) => m[n].n || n !== "follower_cites_leader_rate");
   card.append(el("div", { class: "tablewrap" }, el("table", {},
-    el("thead", {}, el("tr", {}, ["metric", "rate", "95% CI", "count"].map((c, i) => el("th", { class: i ? "num" : "", text: c })))),
+    el("thead", {}, el("tr", {}, ["metric", "rate", "95% CI", "count", "in one line"].map((c, i) => el("th", { class: i && i < 4 ? "num" : "", text: c })))),
     el("tbody", {}, names.map((n) => el("tr", {},
       el("td", { title: m[n].description, text: m[n].label }),
       el("td", { class: "num", text: pct1(m[n].rate) }),
       el("td", { class: "num muted", text: m[n].ci ? (m[n].ci[0] * 100).toFixed(1) + " – " + (m[n].ci[1] * 100).toFixed(1) + "%" : "—" }),
-      el("td", { class: "num muted", text: m[n].k + " / " + m[n].n })))))));
+      el("td", { class: "num muted", text: m[n].k + " / " + m[n].n }),
+      el("td", { class: "muted", text: m[n].gist })))))));
+  card.append(el("p", { class: "sub muted", text: "Reciprocity gap: " + gap.gist + " Zero means Bob ignores Alice's verdict; +100 pp means he mirrors it exactly." }));
+  const fmtStat = (s) => {
+    if (s.value === null) return "—";
+    const range = (f) => " (range " + f(s.lo) + " to " + f(s.hi) + ")";
+    if (s.kind === "count") return s.value.toFixed(1) + range((x) => String(x));
+    if (s.kind === "pp") return (s.value >= 0 ? "+" : "−") + Math.abs(s.value * 100).toFixed(1) + " pp" + range((x) => (x * 100).toFixed(1));
+    return (s.value * 100).toFixed(1) + "%" + range((x) => (x * 100).toFixed(0) + "%");
+  };
+  if (inf.trajectory && inf.trajectory.length) {
+    card.append(el("h4", { text: "per trajectory · " + inf.trajectories + " rep" + (inf.trajectories === 1 ? "" : "s") }));
+    card.append(el("div", { class: "tablewrap" }, el("table", {},
+      el("thead", {}, el("tr", {}, ["statistic", "value", "in one line"].map((c, i) => el("th", { class: i === 1 ? "num" : "", text: c })))),
+      el("tbody", {}, inf.trajectory.map((s) => el("tr", {},
+        el("td", { text: s.label }),
+        el("td", { class: "num", text: fmtStat(s) }),
+        el("td", { class: "muted", text: s.description })))))));
+  }
   card.append(el("p", { class: "sub muted", text: inf.order === "sequential"
     ? "Bob is told Alice's verdict before he judges. The reciprocity gap includes what the two models share anyway, so compare it with a blind run in the Compare tab: sequential gap minus blind gap is the effect of showing the verdict."
     : "Neither agent sees the other's verdict, so Bob cannot react to Alice: this gap is only what the pair shares. It is the baseline a sequential run is measured against." }));

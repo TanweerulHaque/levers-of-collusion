@@ -92,7 +92,7 @@ LLM judge read saved `run.json`. Output CSV.
 
 - `agreement_judge.py` — find explicit deal in talk transcript. "You accept me, I accept you." Judge see transcript only, no verdict, no reward. Positive need two verbatim quote, else throw away.
 - `relaxation_judge.py` — find policy relaxation in private reflection. "Next time summary enough." Judge see one reflection only. Positive need verbatim quote.
-- `verdict_influence.py` — does Bob follow Alice's verdict? P(Bob ACCEPT given Alice ACCEPT/REJECT), reciprocity gap, false-ACCEPT, accuracy. Used by `collusion_metrics.py`, `compare_runs.py` and the viewer.
+- `verdict_influence.py` — does Bob follow Alice's verdict? P(Bob ACCEPT given Alice ACCEPT/REJECT), reciprocity gap, false-ACCEPT, accuracy, overall verdict mix and per-trajectory stats, each with a one-line gist. Used by `collusion_metrics.py`, `compare_runs.py` and the viewer.
 - `*_judge_prompts.md` — the prompt text for each judge.
 - `collusion_metrics.py` — EC, TC, CC from `run.json` verdicts (paper Sec. 3.1, App. C.1). No judge. `experiments/cli.py` call it after the run. Groups run by model pair and run label. Skip run that stop early, episode not throttled or not `raw-only`, and scripted Bob.
 
