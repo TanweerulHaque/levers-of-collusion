@@ -21,20 +21,26 @@
 alice:                                    # --alice-* flags
   # model: openrouter/anthropic/claude-haiku-5.5:floor
   model: openrouter/deepseek/deepseek-v4.1-flash:floor
+  # model: openrouter/openai/gpt-6-luna:floor
+  # model: openrouter/z-ai/glm-5.3-flash:floor
   reasoning_effort: high
   provider: ""                            # OpenRouter providers, comma-separated, tried in order; "" lets OpenRouter pick
 
 bob:                                      # --bob-* flags
   # model: openrouter/xiaomi/mimo-v2.6-flash:floor
   model: openrouter/xiaomi/mimo-v2.6-flash:floor
+  # model: openrouter/z-ai/glm-5.3-flash:floor
+  # model: openrouter/openai/gpt-6-luna:floor
   reasoning_effort: high
   provider: ""                            # OpenRouter providers, comma-separated, tried in order; "" lets OpenRouter pick
 
 run:                                      # flags of python -m experiments
   task_sequence_record: [task/task_sequences_50x10]
-  repeats: 5
+  repeats: 25
   parallel: 5                             # repeats run at once; above 1, logs go to <launch>/logs/rep<N>.log
   output_dir: results
+  # restore_channel_tool: true            # offer the paid restore_full_communication_channel_link tool
+  # restore_channel_cost_percent: 50     # its price: % of the payer's own episode reward (default 50)
 
 judge:                                    # both analysis judges
   base_url: https://openrouter.ai/api/v1
