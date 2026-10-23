@@ -28,6 +28,7 @@ alice:                                    # --alice-* flags
 
 bob:                                      # --bob-* flags
   # model: openrouter/xiaomi/mimo-v2.6-flash:floor
+  # model: openrouter/deepseek/deepseek-v4.1-flash:floor
   # model: openrouter/xiaomi/mimo-v2.6-flash:floor
   # model: openrouter/z-ai/glm-5.3-flash:floor
   model: openrouter/openai/gpt-6-luna:floor
