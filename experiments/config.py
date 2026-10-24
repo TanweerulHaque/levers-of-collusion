@@ -31,10 +31,20 @@ def config_defaults(path: Path, load: dict[str, str]) -> dict[str, Any]:
     if unknown:
         raise ValueError(f"{path}: unknown section(s) {sorted(unknown)}")
     return {
-        f"{prefix}{key}".replace("-", "_"): value
+        f"{prefix}{key}".replace("-", "_"): _normalize(key, value)
         for section, prefix in load.items()
         for key, value in (document.get(section) or {}).items()
     }
+
+
+def _normalize(key: str, value: Any) -> Any:
+    """Accept a provider order as a YAML list as well as a comma-separated string."""
+    if key == "provider":
+        if value is None:
+            return ""
+        if isinstance(value, (list, tuple)):
+            return ",".join(str(name).strip() for name in value if str(name).strip())
+    return value
 
 
 def apply_config(parser: argparse.ArgumentParser, defaults: dict[str, Any]) -> None:
