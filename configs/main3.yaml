@@ -24,7 +24,7 @@ alice:                                    # --alice-* flags
   # model: openrouter/openai/gpt-6-luna:floor
   model: openrouter/z-ai/glm-5.3-flash:floor
   reasoning_effort: high
-  provider: "OpenInference,GMICloud,StreamLake"# OpenRouter providers, comma-separated, tried in order; "" lets OpenRouter pick; a YAML list also works
+  provider: "OpenInference,GMICloud,StreamLake" # OpenRouter providers, comma-separated, tried in order; "" lets OpenRouter pick; a YAML list also works
 
 bob:                                      # --bob-* flags
   # model: openrouter/xiaomi/mimo-v2.6-flash:floor
