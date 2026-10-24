@@ -24,7 +24,7 @@ alice:                                    # --alice-* flags
   # model: openrouter/openai/gpt-6-luna:floor
   model: openrouter/z-ai/glm-5.3-flash:floor
   reasoning_effort: high
-  provider: "OpenInference,GMICloud,StreamLake"# OpenRouter providers, comma-separated, tried in order; "" lets OpenRouter pick; a YAML list also works
+  provider: "OpenInference,GMICloud,StreamLake" # OpenRouter providers, comma-separated, tried in order; "" lets OpenRouter pick; a YAML list also works
 
 bob:                                      # --bob-* flags
   # model: openrouter/xiaomi/mimo-v2.6-flash:floor
@@ -36,7 +36,7 @@ bob:                                      # --bob-* flags
 
 run:                                      # flags of python -m experiments
   task_sequence_record: [task/task_sequences_50x10]
-  repeats: 5
+  repeats: 25
   parallel: 5                             # repeats run at once; above 1, logs go to <launch>/logs/rep<N>.log
   output_dir: results
   # restore_channel_tool: true            # offer the paid restore_full_communication_channel_link tool
