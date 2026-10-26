@@ -6,6 +6,29 @@ Original paper: **Emergent Collusion in Long-Horizon LLM Agent Interaction**. Au
 
 📄 [Paper](https://arxiv.org/abs/2609.24967) | 💻 [Original code](https://github.com/SALT-NLP/agent-collusion) | 🤗 [Data](https://huggingface.co/datasets/SALT-NLP/agent-collusion) | 🔍 [Data Viewer](https://salt-nlp.github.io/agent-collusion-website/)
 
+## Sprint report: Looking the Other Way
+
+Apart Research AI Collusion Research Sprint (23–25 October 2026), Track 3. Report: [reports/report.pdf](reports/report.pdf). Slides: [reports/looking-the-other-way-slides.pptx](reports/looking-the-other-way-slides.pptx). Rebuild steps: [reports/README.md](reports/README.md).
+
+Question: which levers change how often two LLM reviewers accept each other's work without the evidence the rule requires?
+
+| Branch | Adds |
+| --- | --- |
+| `main` | Original SALT-NLP code, unchanged |
+| `tanweer/exp-1` | YAML config, OpenRouter, parallel repeats, results viewer |
+| `tanweer/exp-2` (default) | Per-term reward penalty, `compare_runs.py`, Compare tab, sprint report in `reports/` |
+| `tanweer/exp-3` | Private peer forecast |
+| `tanweer/exp-4-repair-channel-or-costly-verification` | Config only; idea implemented on `exp-6` |
+| `tanweer/exp-5-announcing-of-episodes-communication-rounds` | Episode countdown |
+| `tanweer/exp-6-restore-full-log-link-tool` | Paid full-channel restore |
+| `tanweer/exp-7-cost-per-character-in-communication` | Per-character message price |
+| `tanweer/exp-8-sequential-verdict` | Sequential verdicts |
+| `tanweer/exp-9-task-difficulty` | Peer difficulty labels |
+
+Main results: model choice sets collusion (0% Claude Haiku 5.5 to 85% DeepSeek pairs); a penalty for wrong verdicts leaves collusion unchanged at 25 trajectories per arm; forecasts, difficulty labels and sequential verdicts cut collusion only by rejecting correct work; a paid restore or a message price cuts unsupported acceptance from 33% to 2–8% without lowering accuracy.
+
+**Prior work.** Everything on `main` is the original release. Code on `tanweer/exp-1` to `exp-9` and all 5-trajectory lever runs (9–20 October 2026) predate the sprint. Sprint work (23–25 October): 25-trajectory baselines, per-term penalty runs, analysis, report and slides in `reports/`.
+
 ## What game do
 
 Two agent: Alice, Bob. Game run 10 episode. Each episode have four phase:

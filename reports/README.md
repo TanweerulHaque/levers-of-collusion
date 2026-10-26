@@ -12,7 +12,7 @@ branches `tanweer/exp-2` to `tanweer/exp-9` each add one lever).
 | `numbers.tex`, `tables/` | Every number and table in the report, generated; do not edit by hand |
 | `figures/` | Report figures (PDF for LaTeX, PNG for slides) |
 | `data/` | Per-condition summaries computed from the run records |
-| `analysis/` | Scripts that read the run records in `joint-task-collusion/results/` |
+| `analysis/` | Scripts that read the run records in `results/` (not tracked in git) |
 
 ## Which runs are used
 
@@ -25,8 +25,8 @@ the 25-trajectory baselines (Luna→GLM, GLM→Luna, DeepSeek self-pair) and the
 Each condition is scored by the code of its own branch, so `harness.py` runs once per branch, in the experiment repo.
 
 ```bash
-cd ../joint-task-collusion
-R=../joint-task-collusion-report
+# run from the repo root; reports/ exists only on tanweer/exp-2, so copy it out before switching branches
+R=/tmp/reports && cp -r reports $R
 git checkout tanweer/exp-2 && python $R/analysis/harness.py exp-2 $R/data/exp2.json LG_base25 LG_base5 LG_base_oct20 GL_base25 GL_base5 DD_base DM_base DM_base+inc HM_forecast+inc LG_pen25 LG_pen5 GL_pen GL_pen+inc --cmp LG_base25:LG_pen25 --cmp GL_base25:GL_pen --cmp LG_base5:LG_base_oct20 --cmp LG_base25:GL_base25 --cmp LG_base5:LG_pen5
 git checkout tanweer/exp-3 && python $R/analysis/harness.py exp-3 $R/data/exp3.json LG_forecast HM_forecast+inc --cmp LG_base25:LG_forecast --cmp LG_base5:LG_forecast
 git checkout tanweer/exp-5-announcing-of-episodes-communication-rounds && python $R/analysis/harness.py exp-5 $R/data/exp5.json LG_countdown LG_countdown_pen --cmp LG_base25:LG_countdown --cmp LG_pen25:LG_countdown_pen --cmp LG_base5:LG_countdown --cmp LG_countdown:LG_countdown_pen
@@ -40,7 +40,7 @@ git checkout tanweer/exp-9-task-difficulty && python $R/analysis/harness.py exp-
 #   plus: python analysis/difficulty_label_metrics.py --runs '<launch>/rep*/run.json' --peer-difficulty-label true --json $R/data/diff_<pair>.json
 git checkout tanweer/exp-2
 
-cd $R
+cd reports   # outputs in /tmp/reports/data -> copy back: cp -r /tmp/reports/data reports/
 python analysis/evidence.py NAME=GLOB ...   # unsupported mutual ACCEPT for the restore and message-price runs
 python analysis/extras.py                   # noise band, forecast calibration, deal phrases, totals
 python make_numbers.py                      # data/numbers.json, numbers.tex, tables/
