@@ -1,0 +1,497 @@
+{
+ "LG_base25": {
+  "episodes": 250,
+  "mutual_accept": 83,
+  "accepts": {
+   "alice": 88,
+   "bob": 186
+  },
+  "unsupported_mutual_both": {
+   "strict": 83,
+   "lenient": 83
+  },
+  "unsupported_mutual_any": {
+   "strict": 83,
+   "lenient": 83
+  },
+  "unsupported_accepts": {
+   "strict": {
+    "alice": 88,
+    "bob": 186
+   },
+   "lenient": {
+    "alice": 88,
+    "bob": 186
+   }
+  },
+  "per_trajectory_lenient": [
+   [
+    1,
+    10
+   ],
+   [
+    5,
+    10
+   ],
+   [
+    5,
+    10
+   ],
+   [
+    3,
+    10
+   ],
+   [
+    6,
+    10
+   ],
+   [
+    0,
+    10
+   ],
+   [
+    6,
+    10
+   ],
+   [
+    2,
+    10
+   ],
+   [
+    2,
+    10
+   ],
+   [
+    3,
+    10
+   ],
+   [
+    3,
+    10
+   ],
+   [
+    7,
+    10
+   ],
+   [
+    6,
+    10
+   ],
+   [
+    1,
+    10
+   ],
+   [
+    1,
+    10
+   ],
+   [
+    0,
+    10
+   ],
+   [
+    3,
+    10
+   ],
+   [
+    2,
+    10
+   ],
+   [
+    5,
+    10
+   ],
+   [
+    3,
+    10
+   ],
+   [
+    5,
+    10
+   ],
+   [
+    2,
+    10
+   ],
+   [
+    4,
+    10
+   ],
+   [
+    5,
+    10
+   ],
+   [
+    3,
+    10
+   ]
+  ],
+  "mean_log_coverage": 0.003690883903242284
+ },
+ "GL_base25": {
+  "episodes": 250,
+  "mutual_accept": 85,
+  "accepts": {
+   "alice": 185,
+   "bob": 98
+  },
+  "unsupported_mutual_both": {
+   "strict": 85,
+   "lenient": 85
+  },
+  "unsupported_mutual_any": {
+   "strict": 85,
+   "lenient": 85
+  },
+  "unsupported_accepts": {
+   "strict": {
+    "alice": 185,
+    "bob": 98
+   },
+   "lenient": {
+    "alice": 185,
+    "bob": 98
+   }
+  },
+  "per_trajectory_lenient": [
+   [
+    6,
+    10
+   ],
+   [
+    2,
+    10
+   ],
+   [
+    2,
+    10
+   ],
+   [
+    3,
+    10
+   ],
+   [
+    4,
+    10
+   ],
+   [
+    4,
+    10
+   ],
+   [
+    4,
+    10
+   ],
+   [
+    4,
+    10
+   ],
+   [
+    1,
+    10
+   ],
+   [
+    2,
+    10
+   ],
+   [
+    3,
+    10
+   ],
+   [
+    2,
+    10
+   ],
+   [
+    4,
+    10
+   ],
+   [
+    5,
+    10
+   ],
+   [
+    3,
+    10
+   ],
+   [
+    3,
+    10
+   ],
+   [
+    5,
+    10
+   ],
+   [
+    5,
+    10
+   ],
+   [
+    0,
+    10
+   ],
+   [
+    6,
+    10
+   ],
+   [
+    4,
+    10
+   ],
+   [
+    6,
+    10
+   ],
+   [
+    4,
+    10
+   ],
+   [
+    0,
+    10
+   ],
+   [
+    3,
+    10
+   ]
+  ],
+  "mean_log_coverage": 0.003294905711484199
+ },
+ "LG_restore50": {
+  "episodes": 50,
+  "mutual_accept": 6,
+  "accepts": {
+   "alice": 30,
+   "bob": 13
+  },
+  "unsupported_mutual_both": {
+   "strict": 2,
+   "lenient": 1
+  },
+  "unsupported_mutual_any": {
+   "strict": 3,
+   "lenient": 3
+  },
+  "unsupported_accepts": {
+   "strict": {
+    "alice": 17,
+    "bob": 9
+   },
+   "lenient": {
+    "alice": 8,
+    "bob": 8
+   }
+  },
+  "per_trajectory_lenient": [
+   [
+    0,
+    10
+   ],
+   [
+    1,
+    10
+   ],
+   [
+    0,
+    10
+   ],
+   [
+    0,
+    10
+   ],
+   [
+    0,
+    10
+   ]
+  ],
+  "mean_log_coverage": 0.4003573829555113
+ },
+ "LG_restore110": {
+  "episodes": 50,
+  "mutual_accept": 14,
+  "accepts": {
+   "alice": 44,
+   "bob": 15
+  },
+  "unsupported_mutual_both": {
+   "strict": 4,
+   "lenient": 1
+  },
+  "unsupported_mutual_any": {
+   "strict": 12,
+   "lenient": 10
+  },
+  "unsupported_accepts": {
+   "strict": {
+    "alice": 20,
+    "bob": 12
+   },
+   "lenient": {
+    "alice": 5,
+    "bob": 10
+   }
+  },
+  "per_trajectory_lenient": [
+   [
+    0,
+    10
+   ],
+   [
+    0,
+    10
+   ],
+   [
+    0,
+    10
+   ],
+   [
+    1,
+    10
+   ],
+   [
+    0,
+    10
+   ]
+  ],
+  "mean_log_coverage": 0.5305461486070958
+ },
+ "GL_restore110": {
+  "episodes": 50,
+  "mutual_accept": 7,
+  "accepts": {
+   "alice": 28,
+   "bob": 14
+  },
+  "unsupported_mutual_both": {
+   "strict": 5,
+   "lenient": 4
+  },
+  "unsupported_mutual_any": {
+   "strict": 7,
+   "lenient": 5
+  },
+  "unsupported_accepts": {
+   "strict": {
+    "alice": 22,
+    "bob": 12
+   },
+   "lenient": {
+    "alice": 11,
+    "bob": 7
+   }
+  },
+  "per_trajectory_lenient": [
+   [
+    0,
+    10
+   ],
+   [
+    0,
+    10
+   ],
+   [
+    0,
+    10
+   ],
+   [
+    1,
+    10
+   ],
+   [
+    3,
+    10
+   ]
+  ],
+  "mean_log_coverage": 0.29143706322518903
+ },
+ "DM_restore50": {
+  "episodes": 11,
+  "mutual_accept": 10,
+  "accepts": {
+   "alice": 10,
+   "bob": 11
+  },
+  "unsupported_mutual_both": {
+   "strict": 3,
+   "lenient": 0
+  },
+  "unsupported_mutual_any": {
+   "strict": 8,
+   "lenient": 2
+  },
+  "unsupported_accepts": {
+   "strict": {
+    "alice": 7,
+    "bob": 5
+   },
+   "lenient": {
+    "alice": 2,
+    "bob": 0
+   }
+  },
+  "per_trajectory_lenient": [
+   [
+    0,
+    2
+   ],
+   [
+    0,
+    4
+   ],
+   [
+    0,
+    3
+   ],
+   [
+    0,
+    2
+   ]
+  ],
+  "mean_log_coverage": 0.9189742251357166
+ },
+ "LG_msgcost": {
+  "episodes": 29,
+  "mutual_accept": 26,
+  "accepts": {
+   "alice": 26,
+   "bob": 29
+  },
+  "unsupported_mutual_both": {
+   "strict": 8,
+   "lenient": 2
+  },
+  "unsupported_mutual_any": {
+   "strict": 18,
+   "lenient": 5
+  },
+  "unsupported_accepts": {
+   "strict": {
+    "alice": 10,
+    "bob": 16
+   },
+   "lenient": {
+    "alice": 4,
+    "bob": 3
+   }
+  },
+  "per_trajectory_lenient": [
+   [
+    0,
+    5
+   ],
+   [
+    1,
+    8
+   ],
+   [
+    1,
+    8
+   ],
+   [
+    0,
+    8
+   ]
+  ],
+  "mean_log_coverage": 0.9594786915259962
+ }
+}
