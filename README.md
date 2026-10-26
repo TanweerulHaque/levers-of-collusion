@@ -1,4 +1,4 @@
-# Joint-Task Collusion
+# Levers of Collusion
 
 Repo copy [SALT-NLP/agent-collusion](https://github.com/SALT-NLP/agent-collusion). Repo add YAML config, OpenRouter, judge auto-run, parallel repeats, results viewer.
 
