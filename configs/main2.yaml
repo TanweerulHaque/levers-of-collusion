@@ -34,6 +34,7 @@ bob:                                      # --bob-* flags
   reasoning_effort: high
   # provider: "OpenInference,Near AI,Sail Research,CoreWeave"        
   provider: "OpenInference,Near AI"        
+  # provider: "Near AI,OpenInference"
 
 run:                                      # flags of python -m experiments
   task_sequence_record: [task/task_sequences_50x10]

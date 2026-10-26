@@ -26,6 +26,7 @@ alice:                                    # --alice-* flags
   reasoning_effort: high
   # provider: "OpenInference,Near AI,Sail Research,CoreWeave" # OpenRouter providers, comma-separatedworks
   provider: "OpenInference,Near AI" # OpenRouter providers, comma-separatedworks
+  # provider: "Near AI,OpenInference"
 
 bob:                                      # --bob-* flags
   # model: openrouter/xiaomi/mimo-v2.6-flash:floor
